@@ -14,6 +14,8 @@ const AuthPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showVerifyPopup, setShowVerifyPopup] = useState(false);
+  const [showVerifyErrorPopup, setShowVerifyErrorPopup] = useState(false);
   const navigate = useNavigate();
 
   // Animation Refs
@@ -76,7 +78,7 @@ const AuthPage: React.FC = () => {
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         if (!userDoc.exists() || !userDoc.data().adminVerified) {
           await signOut(auth);
-          setError("Please verify your email address before logging in.");
+          setShowVerifyErrorPopup(true);
           return;
         }
       }
@@ -142,8 +144,8 @@ const AuthPage: React.FC = () => {
       await sendEmailVerification(cred.user);
       await signOut(auth);
 
-      setMessage("Account created! Please check your email for a verification link before logging in.");
-      navigate('/profile'); // Redirect to profile for completion
+      setShowVerifyPopup(true);
+      setIsLogin(true);
     } catch (err: any) {
       setError("Signup failed: " + err.message);
     } finally {
@@ -158,7 +160,7 @@ const AuthPage: React.FC = () => {
     setMessage(null);
     try {
       await sendPasswordResetEmail(auth, email);
-      setMessage("Password reset email sent! Check your inbox.");
+      setMessage("Password reset email sent! Check your inbox and your spam/junk folder.");
       setIsReset(false);
       setIsLogin(true);
     } catch (err: any) {
@@ -509,6 +511,58 @@ const AuthPage: React.FC = () => {
           &copy; {new Date().getFullYear()} InterviewXpert. Designed by <span className="text-zinc-400">Team Interview Expert</span>.
         </p>
       </footer>
+
+      {/* Verify Email Popup */}
+      {showVerifyPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#111] border border-white/10 rounded-2xl p-8 max-w-sm w-full shadow-2xl text-center">
+            <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i className="fa-regular fa-envelope-open text-2xl"></i>
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Account Created!</h3>
+            <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
+              We've sent a verification link to your email. <strong className="text-zinc-200">Please check your inbox (and spam/junk folder)</strong>, verify your email address, and then log in.
+            </p>
+            <button 
+              onClick={() => setShowVerifyPopup(false)}
+              className="w-full py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-bold transition-colors"
+            >
+              Got it, thanks!
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Unverified Email Login Error Popup */}
+      {showVerifyErrorPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#111] border border-red-500/20 rounded-2xl p-8 max-w-sm w-full shadow-2xl text-center">
+            <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">Email Not Verified</h3>
+            <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
+              You must verify your email before logging in. <strong className="text-zinc-200">Please check your inbox and spam/junk folder</strong> for the verification link.
+              <br /><br />
+              If you did not receive a link, please fill out the Contact Form to have an admin manually verify your account.
+            </p>
+            <div className="flex flex-col gap-3">
+              <Link 
+                to="/contact"
+                className="w-full py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold transition-colors block text-center"
+              >
+                Go to Contact Form
+              </Link>
+              <button 
+                onClick={() => setShowVerifyErrorPopup(false)}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-bold transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
 
   );
