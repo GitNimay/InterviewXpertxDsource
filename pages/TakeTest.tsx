@@ -37,6 +37,7 @@ const TakeTest: React.FC = () => {
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [resultData, setResultData] = useState<any>(null);
+  const [showPromoPopup, setShowPromoPopup] = useState(false);
   
   const [step, setStep] = useState<'collect-info' | 'test' | 'finish'>('collect-info');
   const [candidateInfo, setCandidateInfo] = useState({ name: '', email: '' });
@@ -154,6 +155,11 @@ const TakeTest: React.FC = () => {
       type: test.type
     });
     setSubmitting(false);
+
+    // trigger promotional popup
+    setTimeout(() => {
+      setShowPromoPopup(true);
+    }, 1500);
   };
 
   // Update ref in effect to avoid render side-effects
@@ -216,11 +222,48 @@ const TakeTest: React.FC = () => {
             </div>
           )}
 
-          <div className="flex justify-center">
+          <div className="flex justify-center mt-6">
             <button onClick={() => navigate(auth.currentUser ? '/candidate/dashboard' : '/')} className="px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg">
               {auth.currentUser ? 'Return to Dashboard' : 'Return to Homepage'}
             </button>
           </div>
+
+          {/* Promotional Popup for the main platform */}
+          {showPromoPopup && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.5s_ease-out]">
+              <div className="bg-white dark:bg-[#111] border border-blue-500/30 rounded-3xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden transform animate-[slideInUp_0.4s_ease-out]">
+                {/* Glow effects */}
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/20 blur-3xl rounded-full"></div>
+                <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/20 blur-3xl rounded-full"></div>
+                
+                <div className="relative z-10 text-center">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/30 transform rotate-3">
+                    <i className="fa-solid fa-rocket text-2xl"></i>
+                  </div>
+                  <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-3">Ace Your Next Interview!</h3>
+                  <p className="text-gray-600 dark:text-gray-300 text-sm mb-6 leading-relaxed">
+                    Great job finishing the assessment! Did you know InterviewXpert offers <span className="font-bold text-blue-500">Free AI Mock Interviews</span> and a <span className="font-bold text-purple-500">Smart Resume Builder</span> to help you land your dream job?
+                  </p>
+                  
+                  <div className="flex flex-col gap-3">
+                    <button 
+                      onClick={() => navigate('/')}
+                      className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold shadow-lg transform transition-all hover:-translate-y-0.5"
+                    >
+                      Explore Platform for Free
+                    </button>
+                    <button 
+                      onClick={() => setShowPromoPopup(false)}
+                      className="w-full py-3 bg-gray-100 hover:bg-gray-200 dark:bg-[#1a1a1a] dark:hover:bg-[#222] text-gray-700 dark:text-gray-300 rounded-xl font-bold transition-colors"
+                    >
+                      Maybe Later
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     );
