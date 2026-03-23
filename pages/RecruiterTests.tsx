@@ -81,19 +81,30 @@ const RecruiterTests: React.FC = () => {
                   </div>
                 </div>
                 <h3 className="text-xl font-bold mb-2">{test.title}</h3>
-                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-6">
+                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
                   <span className="capitalize">{test.type} Test</span>
                   <span>•</span>
                   <span>{test.questions?.length || 0} Questions</span>
                   <span>•</span>
                   <span className="flex items-center gap-1"><Clock size={14} /> {test.duration || 'N/A'} min</span>
                 </div>
+                <div className="mb-4 bg-gray-50 dark:bg-black/20 p-3 rounded-lg flex justify-between items-center border border-gray-100 dark:border-white/5">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Access Code</p>
+                    <p className="font-mono text-lg tracking-widest text-blue-600 dark:text-blue-400 font-bold">{test.accessCode || 'N/A'}</p>
+                  </div>
+                  {test.accessCode && (
+                    <button onClick={() => navigator.clipboard.writeText(test.accessCode)} className="text-sm font-medium text-gray-500 hover:text-blue-500 transition-colors">
+                      Copy Code
+                    </button>
+                  )}
+                </div>
                 <div className="pt-4 border-t border-gray-100 dark:border-white/5 flex justify-between items-center">
                   <span className="text-xs text-gray-400">Created {test.createdAt?.toDate().toLocaleDateString()}</span>
                   <button onClick={() => {
-                    navigator.clipboard.writeText(`${window.location.origin}/#/candidate/test/${test.id}`);
-                    alert("Test link copied to clipboard!");
-                  }} className="text-sm font-bold text-blue-600 hover:underline">Copy Link</button>
+                    navigator.clipboard.writeText(`${window.location.origin}/#/test/${test.id}`);
+                    alert("Public test link copied to clipboard!");
+                  }} className="text-sm font-bold text-blue-600 hover:underline">Copy Open Link</button>
                 </div>
               </div>
             ))}

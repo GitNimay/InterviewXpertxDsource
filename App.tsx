@@ -38,6 +38,7 @@ import ReportBug from './pages/ReportBug';
 import CreateInterview from './pages/CreateInterview';
 import RecruiterInterviews from './pages/RecruiterInterviews';
 import InterviewAccess from './pages/InterviewAccess';
+import TestAccess from './pages/TestAccess';
 import InterviewResponses from './pages/InterviewResponses';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; role?: 'recruiter' | 'candidate' | 'admin' }> = ({ children, role }) => {
@@ -130,10 +131,11 @@ const App: React.FC = () => {
               </ThemeProvider>
             } />
 
-            {/* Test Taking Route (No Layout) */}
-            <Route path="candidate/test/:testId" element={
+            {/* Public Test Taking Routes (No Layout) */}
+            <Route path="test/:testId" element={<TestAccess />} />
+            <Route path="test/start/:testId" element={
               <ThemeProvider>
-                <ProtectedRoute role="candidate"><TakeTest /></ProtectedRoute>
+                <TakeTest />
               </ThemeProvider>
             } />
 

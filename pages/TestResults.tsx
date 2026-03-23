@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { ArrowLeft, AlertTriangle, User, FileText, X, Check, XCircle } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, User, FileText, X, Check, XCircle, Search, Mail, Filter } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const TestResults: React.FC = () => {
@@ -13,6 +13,8 @@ const TestResults: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [test, setTest] = useState<any>(null);
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'date' | 'score' | 'name'>('date');
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -45,6 +47,28 @@ const TestResults: React.FC = () => {
     fetchResults();
   }, [testId]);
 
+  const filteredAndSortedSubmissions = submissions
+    .filter(sub => {
+      const search = searchTerm.toLowerCase();
+      return (
+        (sub.candidateName || '').toLowerCase().includes(search) || 
+        (sub.candidateEmail || '').toLowerCase().includes(search)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === 'score') {
+        return b.score - a.score;
+      } else if (sortBy === 'name') {
+        const nameA = a.candidateName || '';
+        const nameB = b.candidateName || '';
+        return nameA.localeCompare(nameB);
+      } else {
+        const dateA = a.submittedAt?.toDate ? a.submittedAt.toDate() : new Date(0);
+        const dateB = b.submittedAt?.toDate ? b.submittedAt.toDate() : new Date(0);
+        return dateB - dateA;
+      }
+    });
+
   return (
     <div className={`min-h-screen p-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
       <div className="max-w-5xl mx-auto">
@@ -52,20 +76,52 @@ const TestResults: React.FC = () => {
           <ArrowLeft size={18} /> Back to Assessments
         </button>
         
-        <h1 className="text-3xl font-bold mb-8">Test Results</h1>
+        <h1 className="text-3xl font-bold mb-6">Test Results</h1>
+
+        {/* Controls */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input 
+              type="text" 
+              placeholder="Search by name or email..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 outline-none focus:border-blue-500 transition-colors shadow-sm"
+            />
+          </div>
+          <div className="flex items-center gap-2 bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2 shadow-sm">
+            <Filter size={18} className="text-gray-400" />
+            <span className="text-sm font-medium text-gray-500 whitespace-nowrap">Sort by:</span>
+            <select 
+              value={sortBy} 
+              onChange={(e: any) => setSortBy(e.target.value)}
+              className={`bg-transparent border-none outline-none font-bold cursor-pointer ${isDark ? 'text-white' : 'text-gray-900'}`}
+            >
+              <option value="date" className={isDark ? 'text-black' : ''}>Newest First</option>
+              <option value="score" className={isDark ? 'text-black' : ''}>Highest Score</option>
+              <option value="name" className={isDark ? 'text-black' : ''}>Name (A-Z)</option>
+            </select>
+          </div>
+        </div>
 
         {loading ? (
           <div className="text-center py-20 opacity-50">Loading results...</div>
-        ) : submissions.length === 0 ? (
+        ) : filteredAndSortedSubmissions.length === 0 ? (
           <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
-            <p className="text-gray-500">No submissions yet.</p>
+            <p className="text-gray-500">No submissions found matching your criteria.</p>
           </div>
         ) : (
           <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden">
-            {submissions.map((sub, i) => (
-              <div key={sub.id} className={`p-6 flex justify-between items-center ${i !== submissions.length - 1 ? 'border-b border-gray-100 dark:border-white/5' : ''}`}>
+            {filteredAndSortedSubmissions.map((sub, i) => (
+              <div key={sub.id} className={`p-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4 ${i !== filteredAndSortedSubmissions.length - 1 ? 'border-b border-gray-100 dark:border-white/5' : ''}`}>
                 <div>
-                  <h3 className="font-bold text-lg">{sub.candidateName}</h3>
+                  <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-1">{sub.candidateName}</h3>
+                  {sub.candidateEmail && (
+                    <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                       <Mail size={14} /> {sub.candidateEmail}
+                    </div>
+                  )}
                   <p className="text-sm text-gray-500">Submitted: {sub.submittedAt?.toDate().toLocaleString()}</p>
                   {sub.tabSwitchCount > 0 && (
                     <div className="flex items-center gap-2 text-xs text-yellow-600 dark:text-yellow-500 mt-1">

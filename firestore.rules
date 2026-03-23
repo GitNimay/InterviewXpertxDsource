@@ -144,7 +144,7 @@ service cloud.firestore {
 
     // --- Tests (Aptitude/Coding) ---
     match /tests/{testId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       // Allow recruiters to manage tests OR candidates to create/manage their own mock tests
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null 
@@ -153,7 +153,7 @@ service cloud.firestore {
     }
 
     match /testSubmissions/{submissionId} {
-      allow create: if request.auth != null;
+      allow create: if true;
       allow read: if request.auth != null;
     }
 

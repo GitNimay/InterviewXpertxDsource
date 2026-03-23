@@ -2,13 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { uploadToCloudinary, generateInterviewQuestions, requestTranscription, fetchTranscriptText, generateFeedback } from '../services/api';
+import { uploadToCloudinary, generateInterviewQuestions, requestTranscription, fetchTranscriptText, generateFeedback, generateOpenAITTS } from '../services/api';
 import { Interview, InterviewState } from '../types';
 import { createPortal } from 'react-dom';
+import { LanguageSelector } from '../components/landing/LanguageSelector';
 
 // --- Types ---
 type WizardStep = 'collect-info' | 'instructions' | 'setup' | 'interview' | 'processing' | 'finish';
-type CandidateInfo = { name: string; email: string; phone: string };
+type CandidateInfo = { name: string; email: string; phone: string; language: string; };
 
 // --- Helper: Load Face API ---
 const loadFaceAPI = (onLoaded: () => void) => {
@@ -109,6 +110,7 @@ const CandidateInfoForm: React.FC<{
   const [phone, setPhone] = useState('');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(initialError);
+  const [language, setLanguage] = useState('en');
 
   useEffect(() => {
       setErrorMsg(initialError);
@@ -121,7 +123,7 @@ const CandidateInfoForm: React.FC<{
       return;
     }
     setErrorMsg(null);
-    onSubmit({ name, email, phone }, resumeFile);
+    onSubmit({ name, email, phone, language }, resumeFile);
   };
 
   return (
@@ -137,6 +139,7 @@ const CandidateInfoForm: React.FC<{
             <label className="text-sm text-gray-600 dark:text-gray-400">Resume (PDF or TXT)</label>
             <input type="file" required accept=".pdf,.txt" onChange={e => setResumeFile(e.target.files ? e.target.files[0] : null)} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
           </div>
+          <LanguageSelector selectedLanguage={language} onLanguageChange={setLanguage} />
           <button type="submit" className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700">Proceed to Interview</button>
         </form>
       </div>
@@ -152,10 +155,11 @@ const CandidateInterviewFlow: React.FC = () => {
   // State
   const [step, setStep] = useState<WizardStep>('collect-info');
   const [interview, setInterview] = useState<Interview | null>(null);
-  const [candidateInfo, setCandidateInfo] = useState<CandidateInfo>({ name: '', email: '', phone: '' });
+  const [candidateInfo, setCandidateInfo] = useState<CandidateInfo>({ name: '', email: '', phone: '', language: 'en' });
   const [interviewState, setInterviewState] = useState<InterviewState>({
     jobId: '', jobTitle: '', jobDescription: '', candidateResumeURL: null, candidateResumeMimeType: null,
-    questions: [], answers: [], videoURLs: [], transcriptIds: [], transcriptTexts: [], currentQuestionIndex: 0
+    questions: [], answers: [], videoURLs: [], transcriptIds: [], transcriptTexts: [], currentQuestionIndex: 0,
+    language: 'en',
   });
 
   const [loadingMsg, setLoadingMsg] = useState('');
@@ -221,7 +225,8 @@ const CandidateInterviewFlow: React.FC = () => {
         interview!.description,
         "0 years",
         base64String,
-        submittedFile.type
+        submittedFile.type,
+        submittedInfo.language
       );
 
       setInterviewState((prev) => ({
@@ -229,6 +234,7 @@ const CandidateInterviewFlow: React.FC = () => {
         questions,
         candidateResumeURL: resumeUrl,
         candidateResumeMimeType: submittedFile.type,
+        language: submittedInfo.language,
         answers: Array(questions.length).fill(null),
         videoURLs: Array(questions.length).fill(null),
         transcriptIds: Array(questions.length).fill(null),
@@ -551,21 +557,21 @@ const ActiveInterviewSession: React.FC<{
     };
   }, []);
 
-  // TTS auto-play — sentence-chunked to avoid Chrome's 15s cutoff
+  // TTS auto-play — Using Google Cloud TTS Network API for robust multi-language support (English, Hindi, Marathi)
   useEffect(() => {
-    if (!('speechSynthesis' in window) || !currentQ) return;
+    if (!currentQ) return;
 
     let cancelled = false;
-    let speakTimeout: any = null;
+    let currentAudio: HTMLAudioElement | null = null;
+    let playTimeout: any = null;
 
-    // Split text into small chunks (~80 chars max) at sentence/clause boundaries
+    // Split text into small chunks (~100 chars max) to comply with TTS API limits
     const splitIntoChunks = (text: string): string[] => {
-      // Split on sentence endings, commas, semicolons, or "and"/"or" conjunctions
       const raw = text.match(/[^.!?;,]+[.!?;,]?/g) || [text];
       const chunks: string[] = [];
       let current = '';
       for (const part of raw) {
-        if ((current + part).length > 80 && current.length > 0) {
+        if ((current + part).length > 100 && current.length > 0) {
           chunks.push(current.trim());
           current = part;
         } else {
@@ -576,55 +582,56 @@ const ActiveInterviewSession: React.FC<{
       return chunks.length > 0 ? chunks : [text];
     };
 
-    const doSpeak = () => {
-      if (cancelled) return;
-      window.speechSynthesis.cancel();
+    const chunks = splitIntoChunks(currentQ);
+    let idx = 0;
 
-      // Pick a good English voice
-      const voices = window.speechSynthesis.getVoices();
-      const selectedVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
-        || voices.find(v => v.lang.startsWith('en') && !v.localService)
-        || voices.find(v => v.lang.startsWith('en'))
-        || voices[0] || null;
-
-      const chunks = splitIntoChunks(currentQ);
-      let idx = 0;
-
-      const speakNext = () => {
-        if (cancelled || idx >= chunks.length) return;
-        const utterance = new SpeechSynthesisUtterance(chunks[idx]);
-        utterance.rate = 1;
-        utterance.pitch = 1;
-        if (selectedVoice) utterance.voice = selectedVoice;
-        utterance.onend = () => { idx++; speakNext(); };
-        utterance.onerror = () => { idx++; speakNext(); };
-        window.speechSynthesis.speak(utterance);
-      };
-
-      speakNext();
+    const playNext = async () => {
+      if (cancelled || idx >= chunks.length) return;
+      
+      const text = chunks[idx];
+      
+      try {
+        const url = await generateOpenAITTS(text);
+        if (cancelled) return;
+        
+        currentAudio = new Audio(url);
+        currentAudio.onended = () => { 
+          URL.revokeObjectURL(url);
+          idx++; 
+          playNext(); 
+        };
+        currentAudio.onerror = (e) => { 
+          console.warn("TTS Audio Error:", e);
+          URL.revokeObjectURL(url);
+          idx++; 
+          playNext(); 
+        };
+        
+        currentAudio.play().catch(e => {
+          console.warn("Audio auto-play blocked or failed:", e);
+          URL.revokeObjectURL(url);
+          idx++;
+          playNext();
+        });
+      } catch (e) {
+        console.warn("OpenAI TTS Generation Error:", e);
+        // Skip this chunk natively if it fails
+        idx++;
+        playNext();
+      }
     };
 
-    // Wait for voices to be loaded (Chrome loads them async)
-    const voices = window.speechSynthesis.getVoices();
-    if (voices.length > 0) {
-      speakTimeout = setTimeout(doSpeak, 600);
-    } else {
-      const onVoicesReady = () => {
-        window.speechSynthesis.removeEventListener('voiceschanged', onVoicesReady);
-        if (!cancelled) speakTimeout = setTimeout(doSpeak, 300);
-      };
-      window.speechSynthesis.addEventListener('voiceschanged', onVoicesReady);
-      // Fallback if voiceschanged never fires
-      speakTimeout = setTimeout(() => {
-        window.speechSynthesis.removeEventListener('voiceschanged', onVoicesReady);
-        if (!cancelled) doSpeak();
-      }, 1500);
-    }
+    playTimeout = setTimeout(() => {
+      if (!cancelled) playNext();
+    }, 600);
 
     return () => {
       cancelled = true;
-      if (speakTimeout) clearTimeout(speakTimeout);
-      window.speechSynthesis.cancel();
+      if (playTimeout) clearTimeout(playTimeout);
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.src = '';
+      }
     };
   }, [currentQ]);
 
@@ -663,7 +670,7 @@ const ActiveInterviewSession: React.FC<{
       let transcriptId: string | null = null;
       try {
         videoUrl = await uploadToCloudinary(blob, 'video');
-        transcriptId = await requestTranscription(videoUrl);
+        transcriptId = await requestTranscription(videoUrl, state.language);
       } catch (err) { console.error("Upload error", err); }
 
       const idx = state.currentQuestionIndex;

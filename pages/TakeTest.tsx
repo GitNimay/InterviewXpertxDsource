@@ -6,6 +6,24 @@ import { GoogleGenAI } from '@google/genai';
 import { useTheme } from '../context/ThemeContext';
 import { AlertTriangle, Clock, Code, Terminal, Play, FileCode, Settings, CheckCircle } from 'lucide-react';
 
+const TestInfoForm: React.FC<{ onSubmit: (info: {name: string, email: string}) => void }> = ({ onSubmit }) => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-[#050505] p-6">
+      <div className="max-w-md w-full bg-white dark:bg-[#111] p-8 rounded-2xl shadow-xl border border-gray-200 dark:border-white/10">
+        <h2 className="text-2xl font-bold text-center mb-2 dark:text-white">Candidate Information</h2>
+        <p className="text-center text-gray-500 dark:text-gray-400 mb-6">Please provide your details to begin the assessment.</p>
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit({name, email}); }} className="space-y-4">
+          <input type="text" placeholder="Full Name" required value={name} onChange={e => setName(e.target.value)} className="w-full p-3 border rounded-xl dark:bg-[#1a1a1a] dark:text-white dark:border-white/10 outline-none focus:border-blue-500" />
+          <input type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border rounded-xl dark:bg-[#1a1a1a] dark:text-white dark:border-white/10 outline-none focus:border-blue-500" />
+          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white p-3.5 rounded-xl font-bold shadow-lg transition-all">Start Assessment</button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const TakeTest: React.FC = () => {
   const { testId } = useParams();
   const navigate = useNavigate();
@@ -19,6 +37,9 @@ const TakeTest: React.FC = () => {
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [resultData, setResultData] = useState<any>(null);
+  
+  const [step, setStep] = useState<'collect-info' | 'test' | 'finish'>('collect-info');
+  const [candidateInfo, setCandidateInfo] = useState({ name: '', email: '' });
 
   const handleSubmitRef = useRef<() => void>(() => { });
 
@@ -39,7 +60,7 @@ const TakeTest: React.FC = () => {
 
   // Timer effect
   useEffect(() => {
-    if (timeLeft === null || timeLeft <= 0 || submitting) return;
+    if (step !== 'test' || timeLeft === null || timeLeft <= 0 || submitting) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => (prev !== null ? prev - 1 : null));
@@ -68,7 +89,7 @@ const TakeTest: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!auth.currentUser || !test || !test.questions) return;
+    if (!test || !test.questions) return;
     setSubmitting(true);
 
     let score = 0;
@@ -111,8 +132,9 @@ const TakeTest: React.FC = () => {
 
     await addDoc(collection(db, 'testSubmissions'), {
       testId,
-      candidateUID: auth.currentUser.uid,
-      candidateName: auth.currentUser.displayName || 'Candidate',
+      candidateUID: auth.currentUser ? auth.currentUser.uid : candidateInfo.email,
+      candidateName: auth.currentUser ? auth.currentUser.displayName : candidateInfo.name,
+      candidateEmail: candidateInfo.email,
       answers,
       score,
       feedback,
@@ -141,12 +163,19 @@ const TakeTest: React.FC = () => {
 
   // Auto-submit on timeout
   useEffect(() => {
-    if (timeLeft === 0) {
+    if (timeLeft === 0 && step === 'test') {
       handleSubmitRef.current?.();
     }
-  }, [timeLeft]);
+  }, [timeLeft, step]);
 
-  if (resultData) {
+  if (step === 'collect-info') {
+    return <TestInfoForm onSubmit={(info) => {
+      setCandidateInfo(info);
+      setStep('test');
+    }} />;
+  }
+
+  if (resultData || step === 'finish') {
     return (
       <div className={`min-h-screen flex flex-col items-center justify-center p-6 ${isDark ? 'bg-[#050505] text-white' : 'bg-gray-50 text-gray-900'}`}>
         <div className="max-w-3xl w-full bg-white dark:bg-[#111] rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-white/10">
@@ -188,8 +217,8 @@ const TakeTest: React.FC = () => {
           )}
 
           <div className="flex justify-center">
-            <button onClick={() => navigate('/candidate/dashboard')} className="px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg">
-              Return to Dashboard
+            <button onClick={() => navigate(auth.currentUser ? '/candidate/dashboard' : '/')} className="px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg">
+              {auth.currentUser ? 'Return to Dashboard' : 'Return to Homepage'}
             </button>
           </div>
         </div>

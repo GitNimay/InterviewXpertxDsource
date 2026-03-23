@@ -74,12 +74,14 @@ const CreateTest: React.FC = () => {
     if (!title || questions.length === 0) return alert("Add title and at least one question.");
     setLoading(true);
     try {
+      const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       await addDoc(collection(db, 'tests'), {
         recruiterUID: auth.currentUser?.uid,
         title,
         type,
         duration,
         questions,
+        accessCode,
         createdAt: serverTimestamp()
       });
       navigate('/recruiter/tests');

@@ -12,9 +12,38 @@ const ASSEMBLYAI_TRANSCRIPT_ENDPOINT = 'https://api.assemblyai.com/v2/transcript
 // --- Gemini API ---
 // Note: Client-side API usage is generally insecure for production but maintained here as per legacy code structure.
 // Using process.env.API_KEY as per coding guidelines
+
+export const generateOpenAITTS = async (text: string) => {
+  const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+  if (!OPENAI_API_KEY) {
+    throw new Error("OpenAI API key missing. Please add VITE_OPENAI_API_KEY to your .env file to use premium TTS.");
+  }
+  
+  const response = await fetch("https://api.openai.com/v1/audio/speech", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "tts-1",
+      input: text,
+      voice: "alloy"
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || "OpenAI TTS failed");
+  }
+
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+};
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
-export const generateInterviewQuestions = async (jobTitle: string, jobDescription: string, candidateExp: string, base64Resume: string, mimeType: string) => {
+export const generateInterviewQuestions = async (jobTitle: string, jobDescription: string, candidateExp: string, base64Resume: string, mimeType: string, languageCode: string = 'en') => {
+  const targetLanguage = languageCode === 'mr' ? 'Marathi' : languageCode === 'hi' ? 'Hindi' : 'English';
   const prompt = `You are an AI interviewer. Your task is to generate 5 diverse interview questions for a candidate applying for the "${jobTitle}" role.
 The job description is: "${jobDescription}"
 The candidate's stated experience is: ${candidateExp}.
@@ -24,7 +53,8 @@ Instructions:
 1. Provide EXACTLY 5 questions.
 2. Each question must be on a NEW LINE.
 3. DO NOT include numbering (e.g., 1., 2., - ), bullet points (* ), or any introductory/concluding text.
-4. Just provide the plain question text, one per line.`;
+4. Just provide the plain question text, one per line.
+IMPORTANT: You MUST generate the questions strictly in the **${targetLanguage}** language. For Hindi and Marathi, you MUST use the native Devanagari script. DO NOT output English letters for Hindi or Marathi questions.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -142,12 +172,17 @@ export const uploadToCloudinary = async (blob: Blob, resourceType: 'video' | 'im
 };
 
 // --- AssemblyAI ---
-export const requestTranscription = async (audioUrl: string) => {
+export const requestTranscription = async (audioUrl: string, languageCode: string = 'en') => {
   try {
+    const body: any = { audio_url: audioUrl, language_code: languageCode };
+    // Use the Nano model for non-English languages for better accuracy in regional dialects
+    if (languageCode !== 'en') {
+      body.speech_model = 'nano';
+    }
     const response = await fetch(ASSEMBLYAI_TRANSCRIPT_ENDPOINT, {
       method: 'POST',
-      headers: { 'authorization': ASSEMBLYAI_API_KEY },
-      body: JSON.stringify({ audio_url: audioUrl })
+      headers: { 'authorization': ASSEMBLYAI_API_KEY, 'content-type': 'application/json' },
+      body: JSON.stringify(body)
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Transcription request failed");
