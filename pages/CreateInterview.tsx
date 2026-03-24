@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { SKILL_OPTIONS, JOB_CATEGORIES } from './Profile';
 import * as pdfjsLib from 'pdfjs-dist';
+import { sendInterviewInvitations } from '../services/brevoService';
 
 // Setup PDF.js worker to enable PDF parsing
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -20,6 +21,7 @@ const CreateInterview: React.FC = () => {
   const [candidateEmails, setCandidateEmails] = useState<string[]>([]);
   const [currentEmail, setCurrentEmail] = useState('');
   const [parsingResumes, setParsingResumes] = useState(false);
+  const [sendingEmails, setSendingEmails] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -173,19 +175,36 @@ const CreateInterview: React.FC = () => {
     }
   };
 
-  const sendEmail = () => {
-    const subject = "Interview Invitation";
-    const body = `
-      <p>Dear Candidate,</p>
-      <p>You have been invited to an interview for the position of ${formData.title}.</p>
-      <p><strong>Interview Link:</strong> <a href="${interviewLink}">${interviewLink}</a></p>
-      <p><strong>Access Code:</strong> ${accessCode}</p>
-      <p>Please use the above link and access code to join the interview.</p>
-      <p>Best regards,</p>
-      <p>The Recruitment Team</p>
-    `;
-    const mailtoLink = `mailto:${candidateEmails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailtoLink;
+  const sendEmail = async () => {
+    if (!interviewLink || !accessCode) {
+      alert('Please generate the interview link and access code first.');
+      return;
+    }
+    if (candidateEmails.length === 0) {
+      alert('No candidate emails to send to.');
+      return;
+    }
+
+    setSendingEmails(true);
+    try {
+      const result = await sendInterviewInvitations(
+        candidateEmails,
+        formData.title,
+        interviewLink,
+        accessCode
+      );
+
+      if (result.success) {
+        alert(`✅ Successfully sent ${result.totalEmails} invitation email(s)!`);
+      } else {
+        alert(`❌ Failed to send emails: ${result.error}`);
+      }
+    } catch (err: any) {
+      console.error('Email sending error:', err);
+      alert(`❌ Error sending emails: ${err.message}`);
+    } finally {
+      setSendingEmails(false);
+    }
   };
 
   return (
@@ -438,10 +457,14 @@ const CreateInterview: React.FC = () => {
                   <button
                     type="button"
                     onClick={sendEmail}
-                    disabled={candidateEmails.length === 0}
+                    disabled={candidateEmails.length === 0 || sendingEmails}
                     className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-green/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Send Invitation Email
+                    {sendingEmails ? (
+                      <><i className="fa-solid fa-circle-notch fa-spin mr-2"></i>Sending {candidateEmails.length} Email(s)...</>
+                    ) : (
+                      <>Send Invitation Email ({candidateEmails.length})</>
+                    )}
                   </button>
               </div>
             </div>

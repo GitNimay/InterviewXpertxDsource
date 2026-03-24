@@ -74,16 +74,16 @@ const RecruiterInterviews: React.FC = () => {
   };
 
   const handleAddEmail = () => {
-    if (newEmail && editedData.candidateEmails) {
-        setEditedData({ ...editedData, candidateEmails: [...editedData.candidateEmails, newEmail] });
+    if (newEmail) {
+        const currentEmails = editedData.candidateEmails || [];
+        setEditedData({ ...editedData, candidateEmails: [...currentEmails, newEmail] });
         setNewEmail('');
     }
   };
 
   const handleRemoveEmail = (email: string) => {
-      if (editedData.candidateEmails) {
-          setEditedData({ ...editedData, candidateEmails: editedData.candidateEmails.filter(e => e !== email) });
-      }
+      const currentEmails = editedData.candidateEmails || [];
+      setEditedData({ ...editedData, candidateEmails: currentEmails.filter(e => e !== email) });
   };
 
   const handleRemoveNewEmail = (emailToRemove: string) => {
@@ -134,7 +134,7 @@ const RecruiterInterviews: React.FC = () => {
         if (foundEmails) {
           foundEmails.forEach(email => {
             const lowerEmail = email.toLowerCase();
-            if (!selectedInterview?.candidateEmails.includes(lowerEmail) && !newEmails.includes(lowerEmail) && !newEmailsFound.includes(lowerEmail)) {
+            if (!(selectedInterview?.candidateEmails || []).includes(lowerEmail) && !newEmails.includes(lowerEmail) && !newEmailsFound.includes(lowerEmail)) {
               newEmailsFound.push(lowerEmail);
             }
           });
@@ -242,7 +242,7 @@ const RecruiterInterviews: React.FC = () => {
                         <div>
                             <h4 className="text-sm font-semibold mb-2 text-gray-900 dark:text-white">Candidates:</h4>
                             <div className="flex flex-wrap gap-2">
-                                {interview.candidateEmails.map(email => (
+                                {(interview.candidateEmails || []).map(email => (
                                     <span key={email} className="bg-gray-200 dark:bg-gray-700 text-xs rounded-full px-2 py-1">{email}</span>
                                 ))}
                             </div>
@@ -266,7 +266,7 @@ const RecruiterInterviews: React.FC = () => {
                     <div>
                         <h4 className="font-semibold mb-2">Candidate Emails</h4>
                         <div className="flex flex-wrap gap-2 mb-2">
-                            {editedData.candidateEmails?.map(email => (
+                            {(editedData.candidateEmails || []).map(email => (
                                 <div key={email} className="flex items-center gap-2 bg-gray-200 dark:bg-gray-700 rounded-full px-3 py-1 text-sm">
                                     {email}
                                     <button onClick={() => handleRemoveEmail(email)} className="text-red-500 hover:text-red-700">&times;</button>

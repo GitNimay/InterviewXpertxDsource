@@ -2,13 +2,16 @@ export interface Interview {
     id: string;
     title: string;
     description: string;
+    department?: string;
     duration: number;
     difficulty: 'Easy' | 'Medium' | 'Hard';
     questions: Question[];
     candidateId?: string;
+    candidateEmails?: string[];
     recruiterId: string;
     scheduledAt: any; 
     status: 'Pending' | 'Invited' | 'Completed' | 'Cancelled';
+    interviewLink?: string;
     accessCode: string;
     report?: InterviewReport;
     createdAt: any;
