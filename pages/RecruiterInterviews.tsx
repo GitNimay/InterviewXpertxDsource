@@ -4,8 +4,12 @@ import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { Interview } from '../types';
+import * as pdfjsLib from 'pdfjs-dist';
 import { useMessageBox } from '../components/MessageBox';
 import { createPortal } from 'react-dom';
+
+// Setup PDF.js worker to enable PDF parsing
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 const RecruiterInterviews: React.FC = () => {
   const { user } = useAuth();
@@ -17,7 +21,7 @@ const RecruiterInterviews: React.FC = () => {
   const [editedData, setEditedData] = useState<Partial<Interview>>({});
   const [newEmail, setNewEmail] = useState('');
   const [newEmails, setNewEmails] = useState<string[]>([]);
-  const [parsingResume, setParsingResume] = useState(false);
+  const [parsingResumes, setParsingResumes] = useState(false);
   const messageBox = useMessageBox();
 
   useEffect(() => {
@@ -99,50 +103,53 @@ const RecruiterInterviews: React.FC = () => {
   };
 
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (!e.target.files || e.target.files.length === 0) return;
-      
-      const file = e.target.files[0];
-      const allowedTypes = ['text/plain', 'application/pdf'];
-      
-      if (!allowedTypes.includes(file.type)) {
-          messageBox.showError("Unsupported file type. Please upload a PDF or TXT file.");
-          e.target.value = ''; // Reset file input
-          return;
-      }
-      
-      setParsingResume(true);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
+    setParsingResumes(true);
+    const newEmailsFound: string[] = [];
+    let filesProcessed = 0;
+    let filesWithErrors = 0;
+
+    for (const file of Array.from(files)) {
+      let text = '';
       try {
-          let resumeText = '';
-          if (file.type === 'text/plain') {
-              resumeText = await file.text();
-          } else if (file.type === 'application/pdf') {
-              messageBox.showInfo("Simulating PDF text extraction. This requires a library like pdf.js for full functionality.");
-              resumeText = `Simulated text from PDF. Found an email: pdf-candidate@example.com. And another one: test@test.com`;
+        if (file.type === 'application/pdf') {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            text += textContent.items.map((item: any) => item.str).join(' ');
           }
+        } else if (file.type === 'text/plain') {
+          text = await file.text();
+        } else {
+          continue; // Skip unsupported file types
+        }
 
-          const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
-          const foundEmails = resumeText.match(emailRegex);
+        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
+        const foundEmails = text.match(emailRegex);
 
-          if (foundEmails && foundEmails.length > 0) {
-              const emailToAdd = foundEmails[0];
-              if (newEmails.includes(emailToAdd) || selectedInterview?.candidateEmails.includes(emailToAdd)) {
-                  messageBox.showInfo(`Email ${emailToAdd} is already in the list.`);
-              } else {
-                  setNewEmails([...newEmails, emailToAdd]);
-                  messageBox.showSuccess(`Detected email: ${emailToAdd}`);
-              }
-          } else {
-              messageBox.showError("No email address could be detected in the resume.");
-          }
-
+        if (foundEmails) {
+          foundEmails.forEach(email => {
+            const lowerEmail = email.toLowerCase();
+            if (!selectedInterview?.candidateEmails.includes(lowerEmail) && !newEmails.includes(lowerEmail) && !newEmailsFound.includes(lowerEmail)) {
+              newEmailsFound.push(lowerEmail);
+            }
+          });
+        }
+        filesProcessed++;
       } catch (error) {
-          console.error("Error parsing resume:", error);
-          messageBox.showError("An error occurred while parsing the resume.");
-      } finally {
-          setParsingResume(false);
-          e.target.value = '';
-      }
+        console.error(`Error parsing ${file.name}:`, error);
+        filesWithErrors++;
+          }
+    }
+
+    if (newEmailsFound.length > 0) setNewEmails(prev => [...prev, ...newEmailsFound]);
+    messageBox.showInfo(`Processed ${filesProcessed} file(s). Found ${newEmailsFound.length} new email(s). ${filesWithErrors > 0 ? `Failed to parse ${filesWithErrors} file(s).` : ''}`);
+    setParsingResumes(false);
+    e.target.value = ''; // Reset file input
   };
 
   const handleSendInvites = async () => {
@@ -298,9 +305,9 @@ const RecruiterInterviews: React.FC = () => {
                     <div>
                         <label className="block text-sm font-medium mb-2">Upload Resume to Find Email</label>
                         <label className="flex items-center justify-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                            <i className={`fas fa-cloud-upload-alt ${parsingResume ? 'fa-spin' : ''}`}></i>
-                            <span className="font-medium text-sm">{parsingResume ? 'Parsing Resume...' : 'Upload Resume (PDF/TXT)'}</span>
-                            <input type="file" accept=".pdf,.txt" className="hidden" onChange={handleResumeUpload} disabled={parsingResume} />
+                            <i className={`fas fa-cloud-upload-alt ${parsingResumes ? 'fa-spin' : ''}`}></i>
+                            <span className="font-medium text-sm">{parsingResumes ? 'Parsing Resumes...' : 'Upload Resumes (PDF/TXT)'}</span>
+                            <input type="file" multiple accept=".pdf,.txt" className="hidden" onChange={handleResumeUpload} disabled={parsingResumes} />
                         </label>
                     </div>
                     <div>
