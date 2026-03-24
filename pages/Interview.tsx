@@ -6,6 +6,7 @@ import { uploadToCloudinary, generateInterviewQuestions, requestTranscription, f
 import { Interview, InterviewState } from '../types';
 import { createPortal } from 'react-dom';
 import { LanguageSelector } from '../components/landing/LanguageSelector';
+import { useAuth } from '../context/AuthContext';
 
 // --- Types ---
 type WizardStep = 'collect-info' | 'instructions' | 'setup' | 'interview' | 'processing' | 'finish';
@@ -102,15 +103,19 @@ const TicTacToe: React.FC = () => {
 
 // --- Component: Candidate Info Form ---
 const CandidateInfoForm: React.FC<{
-  onSubmit: (info: CandidateInfo, file: File) => void;
+  onSubmit: (info: CandidateInfo, file: File | null, existingResumeUrl?: string) => void;
   errorMsg: string | null;
-}> = ({ onSubmit, errorMsg: initialError }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  user: any;
+  userProfile: any;
+}> = ({ onSubmit, errorMsg: initialError, user, userProfile }) => {
+  const [name, setName] = useState(userProfile?.fullname || userProfile?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(userProfile?.phone || '');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(initialError);
   const [language, setLanguage] = useState('en');
+
+  const existingResumeUrl = userProfile?.resumeURL || userProfile?.resumeUrl;
 
   useEffect(() => {
       setErrorMsg(initialError);
@@ -118,39 +123,111 @@ const CandidateInfoForm: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resumeFile || !name || !email) {
-      setErrorMsg("Please fill in all required fields and upload your resume.");
+    if (!name || !email) {
+      setErrorMsg("Please fill in your name and email.");
+      return;
+    }
+    if (!resumeFile && !existingResumeUrl && !userProfile) {
+      setErrorMsg("Please upload your resume.");
       return;
     }
     setErrorMsg(null);
-    onSubmit({ name, email, phone, language }, resumeFile);
+    onSubmit({ name, email, phone, language }, resumeFile, existingResumeUrl);
   };
 
   return (
-      <div className="max-w-lg w-full bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
+      <div className="max-w-lg w-full bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
         <h2 className="text-2xl font-bold text-center mb-2">Candidate Information</h2>
-        <p className="text-center text-gray-500 dark:text-gray-400 mb-6">Please provide your details to begin.</p>
-        {errorMsg && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">{errorMsg}</div>}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" placeholder="Full Name" required value={name} onChange={e => setName(e.target.value)} className="w-full p-3 border rounded dark:bg-gray-700 dark:border-gray-600" />
-          <input type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border rounded dark:bg-gray-700 dark:border-gray-600" />
-          <input type="tel" placeholder="Contact Number" value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-3 border rounded dark:bg-gray-700 dark:border-gray-600" />
-          <div>
-            <label className="text-sm text-gray-600 dark:text-gray-400">Resume (PDF or TXT)</label>
-            <input type="file" required accept=".pdf,.txt" onChange={e => setResumeFile(e.target.files ? e.target.files[0] : null)} className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600" />
+        <p className="text-center text-gray-500 dark:text-gray-400 mb-6">Confirm your details to begin the AI interview.</p>
+        
+        {userProfile && (
+          <div className="mb-6 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-100 dark:border-blue-800/50 shadow-sm relative overflow-hidden">
+             
+             {/* Decorative Background Elements */}
+             <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-2xl pointer-events-none"></div>
+             
+             <div className="flex items-center gap-3 mb-4">
+               <div className="bg-blue-600 dark:bg-blue-500 text-white w-10 h-10 rounded-xl shadow-md flex items-center justify-center font-black text-lg">
+                 {name.charAt(0).toUpperCase()}
+               </div>
+               <div>
+                 <p className="text-sm text-blue-900 dark:text-blue-200 font-bold mb-0">Profile Auto-Loaded</p>
+                 <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">The AI will use these details to tailor your interview</p>
+               </div>
+             </div>
+
+             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+               <div className="bg-white/60 dark:bg-black/20 p-2.5 rounded-lg border border-blue-100/50 dark:border-white/5">
+                 <p className="text-[10px] uppercase font-bold text-blue-500/80 dark:text-blue-400 mb-1">Stated Experience</p>
+                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                   {userProfile.experience ? `${userProfile.experience} Years` : 'Fresher / 0 Years'}
+                 </p>
+               </div>
+               
+               <div className="bg-white/60 dark:bg-black/20 p-2.5 rounded-lg border border-blue-100/50 dark:border-white/5">
+                 <p className="text-[10px] uppercase font-bold text-blue-500/80 dark:text-blue-400 mb-1">Top Skills</p>
+                 <div className="flex flex-wrap gap-1">
+                   {userProfile.skills && userProfile.skills.length > 0 ? (
+                     userProfile.skills.slice(0, 3).map((skill: string, i: number) => (
+                       <span key={i} className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-800/40 text-[10px] rounded font-medium text-blue-700 dark:text-blue-300 whitespace-nowrap">
+                         {skill}
+                       </span>
+                     ))
+                   ) : (
+                     <span className="text-xs font-medium text-gray-500">Not specified</span>
+                   )}
+                   {userProfile.skills && userProfile.skills.length > 3 && (
+                     <span className="text-[10px] text-gray-500 font-medium self-center">+{userProfile.skills.length - 3}</span>
+                   )}
+                 </div>
+               </div>
+             </div>
           </div>
-          <LanguageSelector selectedLanguage={language} onLanguageChange={setLanguage} />
-          <button type="submit" className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700">Proceed to Interview</button>
+        )}
+
+        {errorMsg && <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">{errorMsg}</div>}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Full Name</label>
+            <input type="text" placeholder="Full Name" required value={name} onChange={e => setName(e.target.value)} className="w-full p-3 border border-gray-200 rounded-xl dark:bg-gray-700/50 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Email</label>
+            <input type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3 border border-gray-200 rounded-xl dark:bg-gray-700/50 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Phone (Optional)</label>
+            <input type="tel" placeholder="Contact Number" value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-3 border border-gray-200 rounded-xl dark:bg-gray-700/50 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          
+          {/* Hide Resume Upload entirely if the user is signed in (we use their Profile Box instead) */}
+          {!userProfile && (
+            <div className="bg-gray-50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Resume Data</label>
+              <input type="file" required accept=".pdf,.png,.jpg,.jpeg" onChange={e => setResumeFile(e.target.files ? e.target.files[0] : null)} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-400" />
+              <p className="text-xs text-gray-400 mt-2">Required for AI generated questions.</p>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Interview Language</label>
+            <LanguageSelector selectedLanguage={language} onLanguageChange={setLanguage} />
+          </div>
+
+          <button type="submit" className="w-full bg-blue-600 text-white p-3.5 rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/30 transition-all transform hover:-translate-y-0.5 mt-4">
+            Proceed to Interview
+          </button>
         </form>
       </div>
   );
 };
 
-
 // --- Main Wizard Component ---
 const CandidateInterviewFlow: React.FC = () => {
   const { interviewId } = useParams();
   const navigate = useNavigate();
+  const { user, userProfile } = useAuth();
 
   // State
   const [step, setStep] = useState<WizardStep>('collect-info');
@@ -187,11 +264,7 @@ const CandidateInterviewFlow: React.FC = () => {
   }, [interviewId]);
 
   // 2. Handle Candidate Info Submission
-  const handleInfoSubmit = async (submittedInfo: CandidateInfo, submittedFile: File) => {
-    if (!submittedFile || !submittedInfo.name || !submittedInfo.email) {
-      setErrorMsg("Please fill in all required fields and upload your resume.");
-      return;
-    }
+  const handleInfoSubmit = async (submittedInfo: CandidateInfo, submittedFile: File | null, existingResumeUrl?: string) => {
     setCandidateInfo(submittedInfo);
 
     try {
@@ -204,36 +277,53 @@ const CandidateInterviewFlow: React.FC = () => {
     setLoadingMsg("Processing your information...");
 
     try {
-      const getFileAsBase64 = (file: File): Promise<{ base64: string, url: string }> => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-            const url = reader.result as string;
-            const base64 = url.split(',')[1];
-            resolve({ base64, url });
-          };
-          reader.onerror = (error) => reject(error);
-        });
-      };
+      let base64String = '';
+      let resumeMimeType = '';
+      let resumeUrlToSave = existingResumeUrl || '';
 
-      const { base64: base64String, url: resumeUrl } = await getFileAsBase64(submittedFile);
+      if (submittedFile) {
+        setLoadingMsg("Uploading and parsing your resume...");
+        const getFileAsBase64 = (file: File): Promise<{ base64: string, url: string }> => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+              const url = reader.result as string;
+              const base64 = url.split(',')[1];
+              resolve({ base64, url });
+            };
+            reader.onerror = (error) => reject(error);
+          });
+        };
+        const { base64, url } = await getFileAsBase64(submittedFile);
+        base64String = base64;
+        resumeMimeType = submittedFile.type;
+        resumeUrlToSave = url;
+      } else if (userProfile) {
+        setLoadingMsg("Synthesizing your profile data for AI...");
+        const profileText = `[Candidate Profile Data]\nName: ${submittedInfo.name}\nEmail: ${submittedInfo.email}\nExperience: ${userProfile.experience || 0} Years\nSkills: ${(userProfile.skills || []).join(', ')}`;
+        base64String = btoa(unescape(encodeURIComponent(profileText)));
+        resumeMimeType = 'text/plain';
+        resumeUrlToSave = 'data:text/plain;base64,' + base64String;
+      } else {
+        throw new Error("No resume or profile data provided.");
+      }
 
       setLoadingMsg("AI is generating tailored questions... (approx 30s)");
       const questions = await generateInterviewQuestions(
         interview!.title,
         interview!.description,
-        "0 years",
+        userProfile?.experience ? `${userProfile.experience} years` : "0 years",
         base64String,
-        submittedFile.type,
+        resumeMimeType,
         submittedInfo.language
       );
 
       setInterviewState((prev) => ({
         ...prev,
         questions,
-        candidateResumeURL: resumeUrl,
-        candidateResumeMimeType: submittedFile.type,
+        candidateResumeURL: resumeUrlToSave,
+        candidateResumeMimeType: resumeMimeType,
         language: submittedInfo.language,
         answers: Array(questions.length).fill(null),
         videoURLs: Array(questions.length).fill(null),
@@ -297,10 +387,12 @@ const CandidateInterviewFlow: React.FC = () => {
     return (
       <Container>
         <CandidateInfoForm 
-            onSubmit={(info, file) => {
-                handleInfoSubmit(info, file);
+            onSubmit={(info, file, existingResumeUrl) => {
+                handleInfoSubmit(info, file, existingResumeUrl);
             }} 
             errorMsg={errorMsg}
+            user={user}
+            userProfile={userProfile}
         />
       </Container>
     );

@@ -313,9 +313,26 @@ const CandidateDashboard: React.FC<{ onlyBestMatches?: boolean }> = ({ onlyBestM
         </div>
 
         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{job.title}</h3>
-        <p className="text-gray-500 dark:text-gray-500 text-sm mb-6 flex items-center gap-1.5">
+        <p className="text-gray-500 dark:text-gray-500 text-sm mb-4 flex items-center gap-1.5">
           {job.companyName} • <span className="text-gray-600 dark:text-gray-600">{(job as any).location || 'Remote'}</span>
         </p>
+
+        {/* Inline Access Code Badge */}
+        {(job as any).accessCode && !isCompleted && (
+          <div className="mb-6">
+            <div className="inline-flex items-center gap-2 bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300 text-xs font-mono font-bold px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800/50">
+              <i className="fas fa-key"></i> {(job as any).accessCode}
+              <div className="w-px h-3 bg-blue-200 dark:bg-blue-800 mx-1"></div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText((job as any).accessCode); }}
+                className="hover:text-blue-900 dark:hover:text-white transition-colors"
+                title="Copy Access Code"
+              >
+                <i className="far fa-copy cursor-pointer text-sm"></i>
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between mt-auto">
           <p className="text-gray-900 dark:text-white font-bold text-sm">{(job as any).salaryRange || 'Competitive'}</p>
@@ -699,6 +716,28 @@ const CandidateDashboard: React.FC<{ onlyBestMatches?: boolean }> = ({ onlyBestM
                 )}
               </div>
             </div>
+
+            {(selectedJob as any).accessCode && !isCompleted && (
+              <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/50 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-2">
+                <div>
+                  <h3 className="text-blue-800 dark:text-blue-300 font-bold mb-1 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" /> AI Interview Ready
+                  </h3>
+                  <p className="text-blue-600 dark:text-blue-400/80 text-sm">Copy this Access Code to begin the interview.</p>
+                </div>
+                <div className="flex items-center bg-white dark:bg-[#111] p-1.5 pl-4 rounded-xl border border-blue-100 dark:border-blue-900 shadow-sm w-full sm:w-auto">
+                  <span className="font-mono text-xl font-black tracking-widest text-gray-900 dark:text-white flex-1 text-center sm:text-left">
+                    {(selectedJob as any).accessCode}
+                  </span>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText((selectedJob as any).accessCode)} 
+                    className="ml-3 px-4 py-2 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-800/50 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-bold transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
               <div className="bg-gray-50 dark:bg-[#161616] p-4 rounded-xl border border-gray-100 dark:border-white/5">

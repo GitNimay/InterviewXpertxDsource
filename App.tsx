@@ -140,6 +140,11 @@ const App: React.FC = () => {
             } />
 
             {/* Public Report Route (No Auth Required) */}
+            <Route path="report/:interviewId" element={
+              <ThemeProvider>
+                <InterviewReport />
+              </ThemeProvider>
+            } />
             <Route path="report/:interviewId/:submissionId" element={
               <ThemeProvider>
                 <InterviewReport />

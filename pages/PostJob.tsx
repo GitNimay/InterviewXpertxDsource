@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -75,7 +75,16 @@ const PostJob: React.FC = () => {
 
     try {
       const deadlineDate = new Date(formData.deadline);
-      await addDoc(collection(db, 'jobs'), {
+      const newAccessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      // Pre-generate the reference to get the ID
+      const jobDocRef = doc(collection(db, 'jobs'));
+      const jobId = jobDocRef.id;
+
+      const newInterviewLink = `${window.location.origin}/#/interview/${jobId}`;
+
+      // Create the Job document
+      await setDoc(jobDocRef, {
         title: formData.title,
         companyName: formData.companyName,
         qualifications: formData.qualifications,
@@ -87,9 +96,30 @@ const PostJob: React.FC = () => {
         recruiterUID: user.uid,
         recruiterName: userProfile?.fullname || user.email,
         recruiterEmail: user.email,
+        interviewLink: newInterviewLink,
+        accessCode: newAccessCode,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
+      // Automatically create the tied AI Interview document using the identical ID!
+      await setDoc(doc(db, 'interviews', jobId), {
+        title: `${formData.title} Interview`,
+        description: formData.description,
+        department: formData.category || 'General',
+        employmentType: 'Full-time', // Defaulting for auto-generation
+        experience: 0,
+        skills: formData.skills,
+        education: formData.qualifications,
+        deadline: formData.deadline,
+        candidateEmails: [],
+        interviewLink: newInterviewLink,
+        accessCode: newAccessCode,
+        recruiterUID: user.uid,
+        jobId: jobId,
+        createdAt: serverTimestamp(),
+      });
+
       navigate('/recruiter/jobs');
     } catch (err) {
       console.error(err);

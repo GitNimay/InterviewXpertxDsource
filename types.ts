@@ -101,3 +101,30 @@ export interface Interview {
     completedAt: any;
   }
   
+  export interface InterviewSubmission {
+    id: string;
+    candidateInfo?: { name: string; email: string; resumeText?: string; language?: string; };
+    score: any;
+    resumeScore?: any;
+    qnaScore?: any;
+    feedback: string;
+    submittedAt?: any;
+    meta?: { cvStats?: any; tabSwitchCount?: number; };
+    questions?: string[];
+    videoURLs?: string[];
+    transcriptTexts?: string[];
+    candidateResumeURL?: string;
+  }
+  
+  export interface InterviewState {
+    jobTitle: string;
+    jobDescription: string;
+    questions: string[];
+    answers: string[];
+    videoURLs: string[];
+    transcriptIds: string[];
+    candidateResumeURL: string | null;
+    candidateResumeMimeType: string | null;
+    language: string;
+  }
+  

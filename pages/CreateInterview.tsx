@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -57,9 +57,13 @@ const CreateInterview: React.FC = () => {
     return () => ctx.revert();
   }, []);
 
+  const [interviewId, setInterviewId] = useState('');
+
   const generateLink = () => {
-    const newInterviewLink = `${window.location.origin}/interview/${Math.random().toString(36).substring(2, 15)}`;
+    const newRand = Math.random().toString(36).substring(2, 15);
+    const newInterviewLink = `${window.location.origin}/#/interview/${newRand}`;
     const newAccessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    setInterviewId(newRand);
     setInterviewLink(newInterviewLink);
     setAccessCode(newAccessCode);
   };
@@ -96,7 +100,7 @@ const CreateInterview: React.FC = () => {
     setLoading(true);
 
     try {
-      await addDoc(collection(db, 'interviews'), {
+      await setDoc(doc(db, 'interviews', interviewId), {
         ...formData,
         candidateEmails,
         interviewLink,
