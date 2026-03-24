@@ -5,6 +5,10 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { SKILL_OPTIONS, JOB_CATEGORIES } from './Profile';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Setup PDF.js worker to enable PDF parsing
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 const CreateInterview: React.FC = () => {
   const { user } = useAuth();
@@ -15,6 +19,7 @@ const CreateInterview: React.FC = () => {
   const [skillSearch, setSkillSearch] = useState('');
   const [candidateEmails, setCandidateEmails] = useState<string[]>([]);
   const [currentEmail, setCurrentEmail] = useState('');
+  const [parsingResumes, setParsingResumes] = useState(false);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -91,6 +96,56 @@ const CreateInterview: React.FC = () => {
 
   const handleRemoveEmail = (emailToRemove: string) => {
     setCandidateEmails(candidateEmails.filter(email => email !== emailToRemove));
+  };
+
+  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setParsingResumes(true);
+    const newEmailsFound: string[] = [];
+    let filesProcessed = 0;
+    let filesWithErrors = 0;
+
+    for (const file of Array.from(files)) {
+      let text = '';
+      try {
+        if (file.type === 'application/pdf') {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            text += textContent.items.map((item: any) => item.str).join(' ');
+          }
+        } else if (file.type === 'text/plain') {
+          text = await file.text();
+        } else {
+          continue; // Skip unsupported file types
+        }
+
+        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
+        const foundEmails = text.match(emailRegex);
+
+        if (foundEmails) {
+          foundEmails.forEach(email => {
+            const lowerEmail = email.toLowerCase();
+            if (!candidateEmails.includes(lowerEmail) && !newEmailsFound.includes(lowerEmail)) {
+              newEmailsFound.push(lowerEmail);
+            }
+          });
+        }
+        filesProcessed++;
+      } catch (error) {
+        console.error(`Error parsing ${file.name}:`, error);
+        filesWithErrors++;
+      }
+    }
+
+    if (newEmailsFound.length > 0) setCandidateEmails(prev => [...prev, ...newEmailsFound]);
+    alert(`Processed ${filesProcessed} file(s). Found ${newEmailsFound.length} new email(s). ${filesWithErrors > 0 ? `Failed to parse ${filesWithErrors} file(s).` : ''}`);
+    setParsingResumes(false);
+    e.target.value = ''; // Reset file input to allow re-uploading the same file
   };
 
 
@@ -316,6 +371,31 @@ const CreateInterview: React.FC = () => {
                     </div>
                 ))}
             </div>
+
+            <div className="relative flex py-2 items-center form-field">
+                <div className="flex-grow border-t border-gray-200 dark:border-white/10"></div>
+                <span className="flex-shrink mx-4 text-gray-400 dark:text-gray-500 text-xs">OR</span>
+                <div className="flex-grow border-t border-gray-200 dark:border-white/10"></div>
+            </div>
+
+            <div className="form-field">
+                <label htmlFor="resume-upload" className={`w-full flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-colors font-medium cursor-pointer ${parsingResumes ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    {parsingResumes ? (
+                        <>
+                            <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                            Parsing Resumes...
+                        </>
+                    ) : (
+                        <>
+                            <i className="fa-solid fa-file-upload"></i>
+                            Upload Resumes to Find Emails
+                        </>
+                    )}
+                </label>
+                <input id="resume-upload" type="file" multiple accept=".pdf,.txt" className="hidden" onChange={handleResumeUpload} disabled={parsingResumes} />
+                <p className="text-xs text-center text-gray-400 dark:text-gray-500 mt-2">Upload one or more PDF/TXT resumes to automatically extract emails.</p>
+            </div>
+
           </div>
 
           <div className="pt-4 form-field">
