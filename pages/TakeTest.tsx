@@ -229,6 +229,15 @@ const TakeTest: React.FC = () => {
   const [markedQuestions, setMarkedQuestions] = useState<Record<number, boolean>>({});
   const [showCalculator, setShowCalculator] = useState(false);
   const [activeCodeTab, setActiveCodeTab] = useState<'problem' | 'code'>('problem');
+
+  type ParsedTestCase = { input: string; expectedOutput: string };
+  type TestRunResult = { input: string; expected: string; actual: string; pass: boolean; error?: string };
+
+  const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [runError, setRunError] = useState<string>('');
+  const [consoleLines, setConsoleLines] = useState<string[]>([]);
+  const [testRunResults, setTestRunResults] = useState<TestRunResult[]>([]);
+  const runTimeoutRef = useRef<number | null>(null);
   
   const [step, setStep] = useState<'collect-info' | 'test' | 'finish'>(user ? 'test' : 'collect-info');
   const [candidateInfo, setCandidateInfo] = useState({
@@ -300,6 +309,332 @@ const TakeTest: React.FC = () => {
       ...prev,
       [currentQ]: !prev[currentQ]
     }));
+  };
+
+  useEffect(() => {
+    // Clear previous Run output when switching questions/language.
+    setRunStatus('idle');
+    setRunError('');
+    setConsoleLines([]);
+    setTestRunResults([]);
+  }, [currentQ, codeLang]);
+
+  const parseTestCases = (raw: unknown): ParsedTestCase[] => {
+    if (!raw) return [];
+    if (typeof raw !== 'string') return [];
+    const s = raw.trim();
+    if (!s) return [];
+
+    // 1) JSON format support: [{input, output}, ...] OR [{Input, Output}, ...]
+    if (s.startsWith('[') || s.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(s);
+        const arr = Array.isArray(parsed) ? parsed : parsed?.testCases;
+        if (Array.isArray(arr)) {
+          return arr
+            .map((t: any) => ({
+              input: String(t.input ?? t.Input ?? ''),
+              expectedOutput: String(t.expectedOutput ?? t.output ?? t.Output ?? ''),
+            }))
+            .filter(tc => tc.input !== '' || tc.expectedOutput !== '');
+        }
+      } catch {
+        // fallthrough to regex parsing
+      }
+    }
+
+    // 2) Inline support:
+    // "Input: 1 Output: 2" or "Input: 1, Output: 2"
+    const inlineRe = /Input\s*:\s*([\s\S]*?)\s*Output\s*:\s*([\s\S]*?)(?=Input\s*:|$)/gi;
+    const inlineMatches: ParsedTestCase[] = [];
+    for (const match of s.matchAll(inlineRe)) {
+      const input = (match[1] ?? '').trim();
+      const expectedOutput = (match[2] ?? '').trim();
+      if (input || expectedOutput) inlineMatches.push({ input, expectedOutput });
+    }
+    if (inlineMatches.length > 0) return inlineMatches;
+
+    // 3) Line-based support:
+    // Input: ...
+    // Output: ...
+    const lines = s.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean);
+    const cases: ParsedTestCase[] = [];
+    let mode: 'input' | 'output' | null = null;
+    let curInput = '';
+    let curOutput = '';
+
+    const pushIfReady = () => {
+      if (curInput !== '' || curOutput !== '') {
+        cases.push({ input: curInput.trim(), expectedOutput: curOutput.trim() });
+      }
+      curInput = '';
+      curOutput = '';
+    };
+
+    for (const line of lines) {
+      const inputMatch = /^Input\s*:/i.exec(line);
+      if (inputMatch) {
+        pushIfReady();
+        mode = 'input';
+        curInput = line.replace(/^Input\s*:/i, '').trim();
+        continue;
+      }
+
+      const outputMatch = /^Output\s*:/i.exec(line);
+      if (outputMatch) {
+        mode = 'output';
+        curOutput = line.replace(/^Output\s*:/i, '').trim();
+        continue;
+      }
+
+      if (mode === 'input') {
+        curInput = curInput ? `${curInput}\n${line}` : line;
+      } else if (mode === 'output') {
+        curOutput = curOutput ? `${curOutput}\n${line}` : line;
+      }
+    }
+
+    pushIfReady();
+    return cases;
+  };
+
+  const runJavaScriptAgainstTests = (code: string, tests: ParsedTestCase[]) =>
+    new Promise<{ logs: string[]; results: TestRunResult[] }>((resolve, reject) => {
+      const workerSource = `
+        self.onmessage = function(e) {
+          const { code, tests } = e.data;
+          const logs = [];
+          const results = [];
+
+          const pushLog = (...args) => {
+            try {
+              logs.push(args.map(v => (typeof v === 'string') ? v : JSON.stringify(v)).join(' '));
+            } catch {
+              logs.push(String(args[0] ?? ''));
+            }
+          };
+
+          // Capture console output from inside the worker.
+          console.log = (...args) => pushLog(...args);
+          console.error = (...args) => pushLog(...args);
+          console.warn = (...args) => pushLog(...args);
+
+          const normalize = (v) => {
+            if (v === undefined) return '';
+            if (v === null) return 'null';
+            if (typeof v === 'string') return v;
+            try { return JSON.stringify(v); } catch { return String(v); }
+          };
+
+          const compare = (actual, expected) => {
+            const a = normalize(actual).trim();
+            const b = String(expected ?? '').trim();
+            // If recruiter didn't provide expected outputs, we still want to run.
+            // We treat '__NO_EXPECTED__' as an auto-pass.
+            if (b === '__NO_EXPECTED__') return true;
+            const aNum = Number(a);
+            const bNum = Number(b);
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+              return Math.abs(aNum - bNum) < 1e-6;
+            }
+            return a === b;
+          };
+
+          try {
+            const getEntry = new Function(
+              code + "\\nreturn (typeof solution === 'function') ? solution : (typeof run === 'function') ? run : (typeof main === 'function') ? main : null;"
+            );
+            const entryFn = getEntry();
+            if (!entryFn) {
+              throw new Error('No entry function found. Please define function solution(input) { ... } (or run/main).');
+            }
+
+            for (const t of tests) {
+              const input = String(t.input ?? '');
+              const expected = String(t.expectedOutput ?? '');
+              try {
+                const actual = entryFn(input);
+                const actualStr = normalize(actual);
+                const pass = compare(actual, expected);
+                results.push({ input, expected, actual: actualStr, pass });
+              } catch (err) {
+                results.push({
+                  input,
+                  expected,
+                  actual: '',
+                  pass: false,
+                  error: (err && err.message) ? err.message : String(err)
+                });
+              }
+            }
+
+            self.postMessage({ type: 'result', logs, results });
+          } catch (err) {
+            self.postMessage({
+              type: 'error',
+              error: (err && err.message) ? err.message : String(err),
+            });
+          }
+        };
+      `;
+
+      const blob = new Blob([workerSource], { type: 'text/javascript' });
+      const worker = new Worker(URL.createObjectURL(blob));
+
+      worker.onmessage = (evt: MessageEvent) => {
+        const data = evt.data;
+        if (!data) return;
+        if (data.type === 'result') resolve({ logs: data.logs || [], results: data.results || [] });
+        if (data.type === 'error') reject(new Error(data.error || 'Code execution failed.'));
+      };
+      worker.onerror = (evt) => reject(evt);
+
+      runTimeoutRef.current = window.setTimeout(() => {
+        try {
+          worker.terminate();
+        } catch {
+          // ignore
+        }
+        reject(new Error('Code execution timed out.'));
+      }, 4000);
+
+      worker.postMessage({ code, tests });
+    });
+
+  const JUDGE0_BASE_URL = 'https://ce.judge0.com';
+
+  const getJudge0LanguageId = (lang: string): number | null => {
+    // Judge0 language IDs (https://docs.judge0.com/)
+    switch (lang) {
+      case 'javascript':
+        return 63; // JavaScript (Node.js)
+      case 'python':
+        return 71; // Python 3
+      case 'java':
+        return 62; // Java
+      case 'cpp':
+        return 54; // C++ (GCC)
+      default:
+        return null;
+    }
+  };
+
+  const runSubmissionJudge0 = async (sourceCode: string, languageId: number, stdin: string) => {
+    const url = `${JUDGE0_BASE_URL}/submissions?base64_encoded=false&wait=true`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        language_id: languageId,
+        source_code: sourceCode,
+        stdin: stdin ?? '',
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg = data?.message || res.statusText || 'Judge0 request failed';
+      throw new Error(msg);
+    }
+    return data as any;
+  };
+
+  const handleRun = async () => {
+    if (!test || !test.questions || !test.questions[currentQ]) return;
+
+    const q = test.questions[currentQ];
+    const code = answers[currentQ] || '';
+
+    setRunError('');
+    setConsoleLines([]);
+    setTestRunResults([]);
+    setRunStatus('running');
+
+    if (!code.trim()) {
+      setRunStatus('error');
+      setRunError('Please write your solution code before running.');
+      return;
+    }
+
+    const tests = parseTestCases(q.testCases);
+    const noTests = !tests || tests.length === 0;
+
+    try {
+      // If there are too many tests, avoid flooding the runner service.
+      const maxTests = 20;
+      const trimmedTests = (noTests
+        ? [{ input: '', expectedOutput: '__NO_EXPECTED__' } as ParsedTestCase]
+        : tests.slice(0, maxTests)
+      );
+
+      if (codeLang === 'javascript') {
+        const res = await runJavaScriptAgainstTests(code, trimmedTests);
+        setConsoleLines(res.logs);
+        setTestRunResults(noTests ? res.results.map(r => ({ ...r, expected: 'N/A' })) : res.results);
+        setRunStatus('done');
+        return;
+      }
+
+      const languageId = getJudge0LanguageId(codeLang);
+      if (!languageId) {
+        setRunStatus('error');
+        setRunError(`Unsupported language for execution: ${codeLang}`);
+        return;
+      }
+
+      const results: TestRunResult[] = [];
+      const logs: string[] = [];
+
+      for (let i = 0; i < trimmedTests.length; i++) {
+        const t = trimmedTests[i];
+        const expected = String(t.expectedOutput ?? '').trim();
+
+        const judgeRes = await runSubmissionJudge0(code, languageId, String(t.input ?? ''));
+        const stdout = (judgeRes?.stdout ?? '').toString();
+        const stderr = (judgeRes?.stderr ?? '').toString();
+        const compileOutput = (judgeRes?.compile_output ?? '').toString();
+
+        const actualStdoutTrim = stdout.trim();
+        const runnerError = compileOutput?.trim() || stderr?.trim();
+        const hasRunnerError = Boolean(runnerError);
+        const pass = hasRunnerError
+          ? false
+          : (expected === '__NO_EXPECTED__' ? true : actualStdoutTrim === expected);
+
+        const actualForUi = actualStdoutTrim !== ''
+          ? actualStdoutTrim
+          : (runnerError ? runnerError : stdout);
+
+        results.push({
+          input: String(t.input ?? ''),
+          expected: noTests ? 'N/A' : expected,
+          actual: actualForUi,
+          pass,
+          error: runnerError ? runnerError : (!pass ? `Expected '${expected}' but got '${actualStdoutTrim}'` : undefined),
+        });
+
+        if (runnerError) {
+          logs.push(`Test ${i + 1} compile/runtime error:\n${runnerError}`);
+        } else if (!pass) {
+          logs.push(`Test ${i + 1} failed. stdout='${actualStdoutTrim}' expected='${expected}'`);
+        }
+      }
+
+      setConsoleLines(logs);
+      setTestRunResults(results);
+      setRunStatus('done');
+    } catch (err: any) {
+      setRunStatus('error');
+      setRunError(err?.message || 'Failed to run code.');
+    } finally {
+      if (runTimeoutRef.current) {
+        clearTimeout(runTimeoutRef.current);
+        runTimeoutRef.current = null;
+      }
+    }
   };
 
   const sendEmailWithApi = async (emailPayload: { to: string; subject: string; html: string; }) => {
@@ -689,8 +1024,74 @@ const TakeTest: React.FC = () => {
                       </div>
                       <button className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors" title="Settings"><Settings size={14} /></button>
                     </div>
-                    <div className="flex-1 relative"><textarea value={answers[currentQ] || ''} onChange={e => handleAnswer(e.target.value)} onPaste={e => e.preventDefault()} className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6" placeholder={`// Write your ${codeLang} solution here...`} spellCheck={false} style={{ tabSize: 2 }} /></div>
-                    <div className="bg-[#252526] border-t border-[#333]"><div className="flex items-center justify-between px-4 py-2"><div className="flex items-center gap-2 text-xs text-gray-400"><Terminal size={12} /><span>Console</span></div><button className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded transition-colors"><Play size={12} /> Run</button></div></div>
+                    <div className="flex-1 relative">
+                      <textarea
+                        value={answers[currentQ] || ''}
+                        onChange={e => handleAnswer(e.target.value)}
+                        onPaste={e => e.preventDefault()}
+                        className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6"
+                        placeholder={
+                          codeLang === 'javascript'
+                            ? "// Define function solution(input) { ... }\n// Return the expected output (string/number)."
+                            : `// Write your ${codeLang} solution here...`
+                        }
+                        spellCheck={false}
+                        style={{ tabSize: 2 }}
+                      />
+                    </div>
+                    <div className="bg-[#252526] border-t border-[#333]">
+                      <div className="flex items-center justify-between px-4 py-2">
+                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                          <Terminal size={12} />
+                          <span>Console</span>
+                        </div>
+                        <button
+                          onClick={handleRun}
+                          disabled={runStatus === 'running'}
+                          className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded transition-colors"
+                        >
+                          {runStatus === 'running' ? 'Running...' : (
+                            <>
+                              <Play size={12} /> Run
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <div className="px-4 pb-3">
+                        {runStatus === 'idle' && (
+                          <div className="text-[11px] text-gray-500">Press Run to execute and verify against test cases.</div>
+                        )}
+                        {runStatus === 'error' && runError && (
+                          <div className="mt-2 text-[12px] text-red-400 whitespace-pre-wrap">{runError}</div>
+                        )}
+                        {runStatus === 'done' && testRunResults.length > 0 && (
+                          <>
+                            <div className="mt-2 text-[11px] text-gray-400">
+                              Passed {testRunResults.filter(r => r.pass).length}/{testRunResults.length}
+                            </div>
+                            <div className="mt-2 max-h-28 overflow-y-auto">
+                              {testRunResults.map((r, idx) => (
+                                <div key={idx} className={`text-[12px] mb-1 ${r.pass ? 'text-green-300' : 'text-red-300'}`}>
+                                  Test {idx + 1}: {r.pass ? 'PASS' : 'FAIL'}
+                                  {r.error ? ` (${r.error})` : ''}
+                                  <div className="text-[11px] text-gray-500 mt-0.5">
+                                    input={r.input.trim()} | expected={r.expected.trim()} | actual={r.actual.trim()}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        {consoleLines.length > 0 && (
+                          <div className="mt-3">
+                            <div className="text-[11px] text-gray-400 mb-1">Logs</div>
+                            <div className="max-h-24 overflow-y-auto bg-[#1e1e1e] border border-[#333] rounded-lg p-2 text-[11px] text-gray-300 whitespace-pre-wrap">
+                              {consoleLines.join('\n')}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -722,9 +1123,42 @@ const TakeTest: React.FC = () => {
                           <option value="java">Java</option>
                           <option value="cpp">C++</option>
                         </select>
-                        <button className="flex items-center gap-2 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded transition-colors"><Play size={12} /> Run</button>
+                        <button
+                          onClick={handleRun}
+                          disabled={runStatus === 'running'}
+                          className="flex items-center gap-2 px-3 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded transition-colors"
+                        >
+                          {runStatus === 'running' ? 'Running...' : (
+                            <>
+                              <Play size={12} /> Run
+                            </>
+                          )}
+                        </button>
                       </div>
-                      <div className="flex-1 relative"><textarea value={answers[currentQ] || ''} onChange={e => handleAnswer(e.target.value)} onPaste={e => e.preventDefault()} className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6" placeholder={`// Write your ${codeLang} solution here...`} spellCheck={false} style={{ tabSize: 2 }} /></div>
+                      <div className="flex-1 relative">
+                        <textarea
+                          value={answers[currentQ] || ''}
+                          onChange={e => handleAnswer(e.target.value)}
+                          onPaste={e => e.preventDefault()}
+                          className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6"
+                          placeholder={
+                            codeLang === 'javascript'
+                              ? "// Define function solution(input) { ... }\n// Return the expected output (string/number)."
+                              : `// Write your ${codeLang} solution here...`
+                          }
+                          spellCheck={false}
+                          style={{ tabSize: 2 }}
+                        />
+                      </div>
+                      <div className="bg-[#252526] border-t border-[#333] px-3 py-2 shrink-0">
+                        {runStatus === 'idle' && <div className="text-[11px] text-gray-500">Run to check test cases.</div>}
+                        {runStatus === 'error' && runError && <div className="text-[12px] text-red-400 whitespace-pre-wrap">{runError}</div>}
+                        {runStatus === 'done' && testRunResults.length > 0 && (
+                          <div className="text-[11px] text-gray-400">
+                            Passed {testRunResults.filter(r => r.pass).length}/{testRunResults.length}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
