@@ -136,7 +136,11 @@ const App: React.FC = () => {
             } />
 
             {/* Public Test Taking Routes (No Layout) */}
-            <Route path="test/:testId" element={<TestAccess />} />
+            <Route path="test/:testId" element={
+              <ThemeProvider>
+                <TestAccess />
+              </ThemeProvider>
+            } />
             <Route path="test/start/:testId" element={
               <ThemeProvider>
                 <TakeTest />
