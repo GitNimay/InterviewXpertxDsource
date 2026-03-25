@@ -85,7 +85,7 @@ const TakeTest: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeLeft, submitting]);
+  }, [step, timeLeft, submitting]);
 
   // Tab switch detection
   useEffect(() => {
