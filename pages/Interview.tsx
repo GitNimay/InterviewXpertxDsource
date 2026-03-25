@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { doc, getDoc, addDoc, collection, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { uploadToCloudinary, generateInterviewQuestions, requestTranscription, fetchTranscriptText, generateFeedback, generateOpenAITTS } from '../services/api';
 import { Interview, InterviewState } from '../types';
@@ -9,7 +9,7 @@ import { LanguageSelector } from '../components/landing/LanguageSelector';
 import { useAuth } from '../context/AuthContext';
 
 // --- Types ---
-type WizardStep = 'collect-info' | 'instructions' | 'setup' | 'interview' | 'processing' | 'finish';
+type WizardStep = 'validating' | 'collect-info' | 'instructions' | 'setup' | 'interview' | 'processing' | 'finish';
 type CandidateInfo = { name: string; email: string; phone: string; language: string; };
 
 // --- Helper: Load Face API ---
@@ -227,10 +227,11 @@ const CandidateInfoForm: React.FC<{
 const CandidateInterviewFlow: React.FC = () => {
   const { interviewId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, userProfile } = useAuth();
 
   // State
-  const [step, setStep] = useState<WizardStep>('collect-info');
+  const [step, setStep] = useState<WizardStep>('validating');
   const [interview, setInterview] = useState<Interview | null>(null);
   const [candidateInfo, setCandidateInfo] = useState<CandidateInfo>({ name: '', email: '', phone: '', language: 'en' });
   const [interviewState, setInterviewState] = useState<InterviewState>({
@@ -245,36 +246,70 @@ const CandidateInterviewFlow: React.FC = () => {
   const [speedStatus, setSpeedStatus] = useState<string | null>(null);
   const [cvStats, setCvStats] = useState<any>(null);
 
-  // 1. Fetch Interview Details
+  // 1. Validate Access & Fetch Interview Details
   useEffect(() => {
-    const init = async () => {
+    const validateAndInit = async () => {
       if (!interviewId) {
         setErrorMsg("Interview ID not found in URL.");
+        setStep('collect-info'); // Fallback to show error
         return;
       }
       try {
-        // Fetch both interview and job doc, since `isMock` is on the job.
         const interviewDocRef = doc(db, 'interviews', interviewId);
-        const jobDocRef = doc(db, 'jobs', interviewId); // Assuming jobId is the same as interviewId
+        const interviewDoc = await getDoc(interviewDocRef);
 
-        const [interviewDoc, jobDoc] = await Promise.all([
-            getDoc(interviewDocRef),
-            getDoc(jobDocRef)
-        ]);
+        if (!interviewDoc.exists()) {
+          throw new Error("This interview does not exist or has been closed.");
+        }
+        
+        const interviewData = { id: interviewDoc.id, ...interviewDoc.data() } as any;
 
-        if (!interviewDoc.exists()) throw new Error("This interview does not exist or has been closed.");
-        const interviewData = { id: interviewDoc.id, ...interviewDoc.data() } as Interview;
+        // Check if this interview requires a token (i.e., it's a post-assessment interview)
+        const requiresToken = interviewData.requiresToken === true;
+        const token = searchParams.get('token');
+
+        if (requiresToken) {
+          if (!token) {
+            throw new Error("A valid access token is required for this interview. Please use the link from your email.");
+          }
+
+          const tokenDocRef = doc(db, 'interviewAccessTokens', token);
+          const tokenDoc = await getDoc(tokenDocRef);
+
+          if (!tokenDoc.exists()) {
+            throw new Error("Invalid or expired interview link. Please check the link from your email.");
+          }
+
+          const tokenData = tokenDoc.data();
+          if (tokenData.isUsed) {
+            throw new Error("This interview link has already been used. Please contact the recruiter if you believe this is an error.");
+          }
+
+          if (tokenData.nextInterviewId !== interviewId) {
+            throw new Error("This interview link is not valid for this job. Please check you are using the correct link.");
+          }
+
+          // Access granted. Mark token as used.
+          await updateDoc(tokenDocRef, { isUsed: true, usedAt: serverTimestamp() });
+        }
+
+        // If we reach here, access is granted. Now load the interview data.
+        const jobDocRef = doc(db, 'jobs', interviewId);
+        const jobDoc = await getDoc(jobDocRef);
         const jobData = jobDoc.exists() ? jobDoc.data() : {};
-
-        // Combine data, giving interviewData precedence
         const combinedData = { ...interviewData, isMock: jobData.isMock || false };
 
         setInterview(combinedData as Interview);
         setInterviewState(prev => ({ ...prev, jobTitle: combinedData.title, jobDescription: combinedData.description, isMock: combinedData.isMock }));
-      } catch (err: any) { setErrorMsg(err.message); }
+        setStep('collect-info');
+
+      } catch (err: any) { 
+        setErrorMsg(err.message); 
+        setStep('collect-info'); // Fallback to show error
+      }
     };
-    init();
-  }, [interviewId]);
+    validateAndInit();
+  }, [interviewId, searchParams]);
 
   // 2. Handle Candidate Info Submission
   const handleInfoSubmit = async (submittedInfo: CandidateInfo, submittedFile: File | null, existingResumeUrl?: string) => {
@@ -392,6 +427,17 @@ const CandidateInterviewFlow: React.FC = () => {
             <div className="absolute inset-3 border-t-4 border-purple-500 rounded-full animate-spin reverse"></div>
           </div>
         }
+      </Container>
+    );
+  }
+
+  if (step === 'validating') {
+    return (
+      <Container>
+        <div className="relative w-20 h-20">
+          <div className="absolute inset-0 border-t-4 border-blue-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-3 border-t-4 border-purple-500 rounded-full animate-spin reverse"></div>
+        </div>
       </Container>
     );
   }

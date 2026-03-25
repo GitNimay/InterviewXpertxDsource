@@ -106,6 +106,28 @@ const TakeTest: React.FC = () => {
     setAnswers({ ...answers, [currentQ]: val });
   };
 
+  const sendEmailWithApi = async (emailPayload: { to: string; subject: string; html: string; }) => {
+    try {
+      // IMPORTANT: This is a placeholder for your actual serverless function endpoint.
+      // This endpoint should be a backend function that securely sends the email.
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailPayload),
+      });
+  
+      if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
+      console.log("Email sent successfully via API.");
+    } catch (error) {
+      console.error("Could not send email via API, falling back to Firestore 'mail' collection.", error);
+      // Fallback to the original method if the API call fails
+      await addDoc(collection(db, 'mail'), {
+        to: emailPayload.to,
+        message: { subject: emailPayload.subject, html: emailPayload.html },
+      });
+    }
+  };
+
   const handleSubmit = async () => {
     if (!test || !test.questions) return;
     setSubmitting(true);
@@ -148,6 +170,12 @@ const TakeTest: React.FC = () => {
       }
     }
 
+    // Fetch the full test data again to get passingScore and nextInterviewId
+    const testDoc = await getDoc(doc(db, 'tests', testId!));
+    const fullTestData = testDoc.data() as any;
+
+    const submissionStatus = (fullTestData.passingScore && score >= fullTestData.passingScore) ? 'passed' : 'failed';
+
     await addDoc(collection(db, 'testSubmissions'), {
       testId,
       candidateUID: user?.uid || candidateInfo.email, // Use email as fallback ID for anonymous users
@@ -156,9 +184,52 @@ const TakeTest: React.FC = () => {
       answers,
       score,
       feedback,
+      status: submissionStatus,
       tabSwitchCount,
       submittedAt: serverTimestamp()
     });
+
+    // If passed and there's a next step, generate token and send email
+    if (submissionStatus === 'passed') {
+      // Internal AI Interview flow
+      if (fullTestData.nextInterviewId) {
+        try {
+          const tokenDocRef = await addDoc(collection(db, 'interviewAccessTokens'), {
+            testId,
+            nextInterviewId: fullTestData.nextInterviewId,
+            candidateEmail: candidateInfo.email,
+            candidateName: candidateInfo.name,
+            generatedAt: serverTimestamp(),
+            isUsed: false,
+          });
+          const interviewToken = tokenDocRef.id;
+          const interviewLink = `${window.location.origin}/#/interview/${fullTestData.nextInterviewId}?token=${interviewToken}`;
+          
+          await sendEmailWithApi({
+            to: candidateInfo.email,
+            subject: `Congratulations! You've Passed the Assessment for ${test.title}`,
+            html: `<p>Dear ${candidateInfo.name},</p><p>Congratulations! You have successfully passed the online assessment for the <strong>${test.title}</strong> position.</p><p>Your performance was impressive, and we would like to invite you to the next stage: an AI-powered video interview.</p><p>Please use the link below to start your interview. This is a unique, one-time use link.</p><p><a href="${interviewLink}"><strong>Start Your AI Interview Now</strong></a></p><p>Best of luck!</p><p>The Hiring Team</p>`,
+          });
+        } catch (emailError) {
+          console.error("Error processing internal interview email:", emailError);
+        }
+      // External Link flow
+      } else if (fullTestData.externalInterviewLink) {
+        try {
+          const accessCodeInfo = fullTestData.externalAccessCode 
+            ? `<p><strong>Access Code:</strong> ${fullTestData.externalAccessCode}</p>` 
+            : '';
+
+          await sendEmailWithApi({
+            to: candidateInfo.email,
+            subject: `Congratulations! Next Steps for ${test.title}`,
+            html: `<p>Dear ${candidateInfo.name},</p><p>Congratulations! You have successfully passed the online assessment for the <strong>${test.title}</strong> position.</p><p>Please use the link below for the next round of the interview process.</p><p><a href="${fullTestData.externalInterviewLink}"><strong>Join Interview</strong></a></p>${accessCodeInfo}<p>Best of luck!</p><p>The Hiring Team</p>`,
+          });
+        } catch (emailError) {
+          console.error("Error processing external interview email:", emailError);
+        }
+      }
+    }
 
     if (document.fullscreenElement) {
       await document.exitFullscreen().catch(e => console.error(e));
@@ -169,7 +240,9 @@ const TakeTest: React.FC = () => {
       feedback,
       questions: test.questions,
       userAnswers: answers,
-      type: test.type
+      type: test.type,
+      status: submissionStatus,
+      passingScore: fullTestData.passingScore
     });
     setSubmitting(false);
 
@@ -208,6 +281,17 @@ const TakeTest: React.FC = () => {
             </div>
             <h2 className="text-3xl font-bold mb-2">Assessment Completed</h2>
             <p className="text-gray-500 dark:text-gray-400">You scored <span className="text-blue-600 dark:text-blue-400 font-black text-xl">{resultData.score}%</span></p>
+            {resultData.passingScore && (
+              <div className={`mt-4 text-lg font-bold ${resultData.status === 'passed' ? 'text-green-500' : 'text-red-500'}`}>
+                {resultData.status === 'passed' 
+                  ? `Congratulations, you passed! (Passing score: ${resultData.passingScore}%)`
+                  : `You did not meet the passing score of ${resultData.passingScore}%.`
+                }
+              </div>
+            )}
+            {resultData.status === 'passed' && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">An email with instructions for the next round has been sent to you.</p>
+            )}
           </div>
 
           {resultData.type === 'coding' && resultData.feedback && (

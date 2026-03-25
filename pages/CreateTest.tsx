@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { addDoc, collection, serverTimestamp, query, getDocs, orderBy } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import { GoogleGenAI } from '@google/genai';
-import { Sparkles, Save, ArrowLeft, Plus, Trash } from 'lucide-react';
+import { Sparkles, Save, ArrowLeft, Plus, Trash, Link as LinkIcon } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const CreateTest: React.FC = () => {
@@ -15,10 +15,30 @@ const CreateTest: React.FC = () => {
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [passingScore, setPassingScore] = useState(70);
+  const [nextInterviewId, setNextInterviewId] = useState('');
+  const [recruiterInterviews, setRecruiterInterviews] = useState<any[]>([]);
+  const [automationType, setAutomationType] = useState<'internal' | 'external'>('internal');
+  const [externalLink, setExternalLink] = useState('');
+  const [externalAccessCode, setExternalAccessCode] = useState('');
 
   // Manual Question State
   const [manualQ, setManualQ] = useState({ question: '', options: ['', '', '', ''], correct: 0 });
   const [manualCodeQ, setManualCodeQ] = useState({ title: '', description: '', testCases: '' });
+
+  useEffect(() => {
+    const fetchInterviews = async () => {
+      if (!auth.currentUser) return;
+      const q = query(
+        collection(db, 'interviews'),
+        orderBy('createdAt', 'desc') // Now fetches all interviews from all recruiters
+      );
+      const snap = await getDocs(q);
+      const interviewsList = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setRecruiterInterviews(interviewsList);
+    };
+    fetchInterviews();
+  }, []);
 
   const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
@@ -75,15 +95,24 @@ const CreateTest: React.FC = () => {
     setLoading(true);
     try {
       const accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      await addDoc(collection(db, 'tests'), {
+      const testData: any = {
         recruiterUID: auth.currentUser?.uid,
         title,
         type,
         duration,
         questions,
         accessCode,
+        passingScore: Number(passingScore),
         createdAt: serverTimestamp()
-      });
+      };
+
+      if (automationType === 'internal' && nextInterviewId) {
+        testData.nextInterviewId = nextInterviewId;
+      } else if (automationType === 'external' && externalLink) {
+        testData.externalInterviewLink = externalLink;
+        testData.externalAccessCode = externalAccessCode;
+      }
+      await addDoc(collection(db, 'tests'), testData);
       navigate('/recruiter/tests');
     } catch (error) {
       console.error(error);
@@ -119,6 +148,53 @@ const CreateTest: React.FC = () => {
               <input type="number" value={duration} onChange={e => setDuration(Number(e.target.value))} min="1"
                 className="w-full p-3 rounded-xl bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 outline-none" placeholder="e.g. 15" />
             </div>
+          </div>
+
+          {/* Automation Settings */}
+          <div className="md:col-span-2 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800">
+            <h3 className="font-bold text-blue-700 dark:text-blue-400 flex items-center gap-2 mb-3">
+              <LinkIcon size={18} /> Automation Settings (Optional)
+            </h3>
+            <div className="mb-4">
+                <label className="block text-sm font-bold mb-2">Passing Score (%)</label>
+                <input type="number" value={passingScore} onChange={e => setPassingScore(Number(e.target.value))} min="0" max="100"
+                  className="w-full md:w-1/2 p-3 rounded-xl bg-white dark:bg-[#050505] border border-blue-200 dark:border-blue-800 outline-none" placeholder="e.g. 75" />
+            </div>
+
+            <div className="flex bg-blue-100 dark:bg-blue-900/20 p-1 rounded-lg mb-4">
+                <button type="button" onClick={() => setAutomationType('internal')} className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${automationType === 'internal' ? 'bg-white dark:bg-blue-800 text-blue-700 dark:text-white shadow' : 'text-blue-600 dark:text-blue-300'}`}>
+                    Link to Internal AI Interview
+                </button>
+                <button type="button" onClick={() => setAutomationType('external')} className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${automationType === 'external' ? 'bg-white dark:bg-blue-800 text-blue-700 dark:text-white shadow' : 'text-blue-600 dark:text-blue-300'}`}>
+                    Link to External URL
+                </button>
+            </div>
+
+            {automationType === 'internal' && (
+              <div className="animate-in fade-in duration-300">
+                  <label className="block text-sm font-bold mb-2">Next Round Interview</label>
+                  <select value={nextInterviewId} onChange={e => setNextInterviewId(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-white dark:bg-[#050505] border border-blue-200 dark:border-blue-800 outline-none">
+                    <option value="">Select an interview to link...</option>
+                    {recruiterInterviews.map(interview => (<option key={interview.id} value={interview.id}>{interview.title}</option>))}
+                  </select>
+                  <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">If a candidate passes, they will be automatically emailed a unique, secure link to the selected AI interview.</p>
+              </div>
+            )}
+
+            {automationType === 'external' && (
+              <div className="space-y-4 animate-in fade-in duration-300">
+                  <div>
+                      <label className="block text-sm font-bold mb-2">External Interview Link</label>
+                      <input type="url" value={externalLink} onChange={e => setExternalLink(e.target.value)} className="w-full p-3 rounded-xl bg-white dark:bg-[#050505] border border-blue-200 dark:border-blue-800 outline-none" placeholder="https://zoom.us/j/..." />
+                  </div>
+                  <div>
+                      <label className="block text-sm font-bold mb-2">Access Code (Optional)</label>
+                      <input type="text" value={externalAccessCode} onChange={e => setExternalAccessCode(e.target.value)} className="w-full p-3 rounded-xl bg-white dark:bg-[#050505] border border-blue-200 dark:border-blue-800 outline-none" placeholder="e.g. 123456" />
+                  </div>
+                  <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">If a candidate passes, they will be automatically emailed this link and access code.</p>
+              </div>
+            )}
           </div>
 
           {/* AI Generator */}

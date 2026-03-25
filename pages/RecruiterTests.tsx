@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, where, getDocs, deleteDoc, doc, orderBy } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, FileText, Code, Eye, Clock } from 'lucide-react';
+import { Plus, Trash2, FileText, Code, Eye, Clock, Sparkles } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 const RecruiterTests: React.FC = () => {
@@ -85,6 +85,9 @@ const RecruiterTests: React.FC = () => {
                   <span className="capitalize">{test.type} Test</span>
                   <span>•</span>
                   <span>{test.questions?.length || 0} Questions</span>
+                  {test.nextInterviewId && (
+                    <span className="flex items-center gap-1 text-blue-500"><Sparkles size={14} /> Automation</span>
+                  )}
                   <span>•</span>
                   <span className="flex items-center gap-1"><Clock size={14} /> {test.duration || 'N/A'} min</span>
                 </div>
