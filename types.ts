@@ -85,6 +85,10 @@ export interface Interview {
     questions: TestQuestion[];
     recruiterId: string;
     accessCode: string;
+    passingScore?: number;
+    nextInterviewId?: string;
+    externalInterviewLink?: string;
+    externalAccessCode?: string;
     createdAt: any;
   }
   
@@ -101,6 +105,8 @@ export interface Interview {
     candidateId: string;
     score: number;
     answers: number[];
+    emailSent?: boolean;
+    emailError?: string;
     completedAt: any;
   }
   

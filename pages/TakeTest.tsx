@@ -7,6 +7,7 @@ import { GoogleGenAI } from '@google/genai';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { AlertTriangle, Clock, Code, Terminal, Play, FileCode, Settings, CheckCircle, Calculator as CalculatorIcon, Flag, X } from 'lucide-react';
+import { sendInterviewInvitations } from '../services/brevoService';
 
 const TestInfoForm: React.FC<{ onSubmit: (info: {name: string, email: string}) => void }> = ({ onSubmit }) => {
   const [name, setName] = useState('');
@@ -68,7 +69,11 @@ const Calculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     if (operator && !waitingForSecondOperand) {
       const result = calculate(firstOperand!, inputValue, operator);
       setDisplay(String(result));
-      setFirstOperand(result);
+      if (typeof result === 'number') {
+        setFirstOperand(result);
+      } else {
+        setFirstOperand(null);
+      }
       setHistory(`${result} ${nextOperator}`);
     } else {
       setFirstOperand(inputValue);
@@ -229,30 +234,26 @@ const TakeTest: React.FC = () => {
   const [markedQuestions, setMarkedQuestions] = useState<Record<number, boolean>>({});
   const [showCalculator, setShowCalculator] = useState(false);
   const [activeCodeTab, setActiveCodeTab] = useState<'problem' | 'code'>('problem');
-
-  type ParsedTestCase = { input: string; expectedOutput: string };
-  type TestRunResult = { input: string; expected: string; actual: string; pass: boolean; error?: string };
-
-  const [runStatus, setRunStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
-  const [runError, setRunError] = useState<string>('');
-  const [consoleLines, setConsoleLines] = useState<string[]>([]);
-  const [testRunResults, setTestRunResults] = useState<TestRunResult[]>([]);
-  const runTimeoutRef = useRef<number | null>(null);
+  
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenEscapes, setFullscreenEscapes] = useState(0);
+  const [isTerminated, setIsTerminated] = useState(false);
+  const hasEnteredFullscreenRef = useRef(false);
   
   const [step, setStep] = useState<'collect-info' | 'test' | 'finish'>(user ? 'test' : 'collect-info');
   const [candidateInfo, setCandidateInfo] = useState({
-    name: userProfile?.fullname || user?.displayName || '',
+    name: userProfile?.name || user?.displayName || '',
     email: user?.email || ''
   });
 
-  const handleSubmitRef = useRef<() => void>(() => { });
+  const handleSubmitRef = useRef<(reason?: string) => void>(() => { });
 
   useEffect(() => {
     // If user is logged in, skip the info collection step.
     // This handles cases where user/profile data loads after initial render.
     if (user && step === 'collect-info') {
       setCandidateInfo({
-        name: userProfile?.fullname || user.displayName || '',
+        name: userProfile?.name || user.displayName || '',
         email: user.email || ''
       });
       setStep('test');
@@ -274,16 +275,45 @@ const TakeTest: React.FC = () => {
     fetchTest();
   }, [testId]);
 
+  // Fullscreen effect
+  useEffect(() => {
+    if (step !== 'test' || isTerminated) return;
+
+    const handleFullscreenChange = () => {
+      const isFS = !!document.fullscreenElement;
+      setIsFullscreen(isFS);
+      
+      if (isFS) {
+        hasEnteredFullscreenRef.current = true;
+      } else if (hasEnteredFullscreenRef.current) {
+        setFullscreenEscapes(prev => {
+          const newCount = prev + 1;
+          if (newCount >= 3) {
+            setIsTerminated(true);
+            handleSubmitRef.current?.('terminated');
+          }
+          return newCount;
+        });
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [step, isTerminated]);
+
   // Timer effect
   useEffect(() => {
-    if (step !== 'test' || timeLeft === null || timeLeft <= 0 || submitting) return;
+    if (step !== 'test' || timeLeft === null || timeLeft <= 0 || submitting || !isFullscreen || isTerminated) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => (prev !== null ? prev - 1 : null));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [step, timeLeft, submitting]);
+  }, [step, timeLeft, submitting, isFullscreen, isTerminated]);
 
   // Tab switch detection
   useEffect(() => {
@@ -300,6 +330,58 @@ const TakeTest: React.FC = () => {
     };
   }, []);
 
+  // Anti-cheating: Disable Copy, Cut, Paste, Context Menu, and Keyboard Shortcuts
+  useEffect(() => {
+    if (step !== 'test') return;
+
+    const handleCopyCutPaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+S
+      if (e.ctrlKey || e.metaKey) {
+        if (['c', 'v', 'x', 's'].includes(e.key.toLowerCase())) {
+          e.preventDefault();
+        }
+      }
+      // Prevent F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+      if (e.key === 'F12') {
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'I', 'j', 'J', 'c', 'C'].includes(e.key)) {
+        e.preventDefault();
+      }
+      if ((e.ctrlKey || e.metaKey) && ['u', 'U'].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+
+    const blockDrag = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('copy', handleCopyCutPaste);
+    document.addEventListener('cut', handleCopyCutPaste);
+    document.addEventListener('paste', handleCopyCutPaste);
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('dragstart', blockDrag);
+
+    return () => {
+      document.removeEventListener('copy', handleCopyCutPaste);
+      document.removeEventListener('cut', handleCopyCutPaste);
+      document.removeEventListener('paste', handleCopyCutPaste);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('dragstart', blockDrag);
+    };
+  }, [step]);
+
   const handleAnswer = (val: any) => {
     setAnswers({ ...answers, [currentQ]: val });
   };
@@ -311,362 +393,18 @@ const TakeTest: React.FC = () => {
     }));
   };
 
-  useEffect(() => {
-    // Clear previous Run output when switching questions/language.
-    setRunStatus('idle');
-    setRunError('');
-    setConsoleLines([]);
-    setTestRunResults([]);
-  }, [currentQ, codeLang]);
 
-  const parseTestCases = (raw: unknown): ParsedTestCase[] => {
-    if (!raw) return [];
-    if (typeof raw !== 'string') return [];
-    const s = raw.trim();
-    if (!s) return [];
-
-    // 1) JSON format support: [{input, output}, ...] OR [{Input, Output}, ...]
-    if (s.startsWith('[') || s.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(s);
-        const arr = Array.isArray(parsed) ? parsed : parsed?.testCases;
-        if (Array.isArray(arr)) {
-          return arr
-            .map((t: any) => ({
-              input: String(t.input ?? t.Input ?? ''),
-              expectedOutput: String(t.expectedOutput ?? t.output ?? t.Output ?? ''),
-            }))
-            .filter(tc => tc.input !== '' || tc.expectedOutput !== '');
-        }
-      } catch {
-        // fallthrough to regex parsing
-      }
-    }
-
-    // 2) Inline support:
-    // "Input: 1 Output: 2" or "Input: 1, Output: 2"
-    const inlineRe = /Input\s*:\s*([\s\S]*?)\s*Output\s*:\s*([\s\S]*?)(?=Input\s*:|$)/gi;
-    const inlineMatches: ParsedTestCase[] = [];
-    for (const match of s.matchAll(inlineRe)) {
-      const input = (match[1] ?? '').trim();
-      const expectedOutput = (match[2] ?? '').trim();
-      if (input || expectedOutput) inlineMatches.push({ input, expectedOutput });
-    }
-    if (inlineMatches.length > 0) return inlineMatches;
-
-    // 3) Line-based support:
-    // Input: ...
-    // Output: ...
-    const lines = s.replace(/\r\n/g, '\n').split('\n').map(l => l.trim()).filter(Boolean);
-    const cases: ParsedTestCase[] = [];
-    let mode: 'input' | 'output' | null = null;
-    let curInput = '';
-    let curOutput = '';
-
-    const pushIfReady = () => {
-      if (curInput !== '' || curOutput !== '') {
-        cases.push({ input: curInput.trim(), expectedOutput: curOutput.trim() });
-      }
-      curInput = '';
-      curOutput = '';
-    };
-
-    for (const line of lines) {
-      const inputMatch = /^Input\s*:/i.exec(line);
-      if (inputMatch) {
-        pushIfReady();
-        mode = 'input';
-        curInput = line.replace(/^Input\s*:/i, '').trim();
-        continue;
-      }
-
-      const outputMatch = /^Output\s*:/i.exec(line);
-      if (outputMatch) {
-        mode = 'output';
-        curOutput = line.replace(/^Output\s*:/i, '').trim();
-        continue;
-      }
-
-      if (mode === 'input') {
-        curInput = curInput ? `${curInput}\n${line}` : line;
-      } else if (mode === 'output') {
-        curOutput = curOutput ? `${curOutput}\n${line}` : line;
-      }
-    }
-
-    pushIfReady();
-    return cases;
-  };
-
-  const runJavaScriptAgainstTests = (code: string, tests: ParsedTestCase[]) =>
-    new Promise<{ logs: string[]; results: TestRunResult[] }>((resolve, reject) => {
-      const workerSource = `
-        self.onmessage = function(e) {
-          const { code, tests } = e.data;
-          const logs = [];
-          const results = [];
-
-          const pushLog = (...args) => {
-            try {
-              logs.push(args.map(v => (typeof v === 'string') ? v : JSON.stringify(v)).join(' '));
-            } catch {
-              logs.push(String(args[0] ?? ''));
-            }
-          };
-
-          // Capture console output from inside the worker.
-          console.log = (...args) => pushLog(...args);
-          console.error = (...args) => pushLog(...args);
-          console.warn = (...args) => pushLog(...args);
-
-          const normalize = (v) => {
-            if (v === undefined) return '';
-            if (v === null) return 'null';
-            if (typeof v === 'string') return v;
-            try { return JSON.stringify(v); } catch { return String(v); }
-          };
-
-          const compare = (actual, expected) => {
-            const a = normalize(actual).trim();
-            const b = String(expected ?? '').trim();
-            // If recruiter didn't provide expected outputs, we still want to run.
-            // We treat '__NO_EXPECTED__' as an auto-pass.
-            if (b === '__NO_EXPECTED__') return true;
-            const aNum = Number(a);
-            const bNum = Number(b);
-            if (!isNaN(aNum) && !isNaN(bNum)) {
-              return Math.abs(aNum - bNum) < 1e-6;
-            }
-            return a === b;
-          };
-
-          try {
-            const getEntry = new Function(
-              code + "\\nreturn (typeof solution === 'function') ? solution : (typeof run === 'function') ? run : (typeof main === 'function') ? main : null;"
-            );
-            const entryFn = getEntry();
-            if (!entryFn) {
-              throw new Error('No entry function found. Please define function solution(input) { ... } (or run/main).');
-            }
-
-            for (const t of tests) {
-              const input = String(t.input ?? '');
-              const expected = String(t.expectedOutput ?? '');
-              try {
-                const actual = entryFn(input);
-                const actualStr = normalize(actual);
-                const pass = compare(actual, expected);
-                results.push({ input, expected, actual: actualStr, pass });
-              } catch (err) {
-                results.push({
-                  input,
-                  expected,
-                  actual: '',
-                  pass: false,
-                  error: (err && err.message) ? err.message : String(err)
-                });
-              }
-            }
-
-            self.postMessage({ type: 'result', logs, results });
-          } catch (err) {
-            self.postMessage({
-              type: 'error',
-              error: (err && err.message) ? err.message : String(err),
-            });
-          }
-        };
-      `;
-
-      const blob = new Blob([workerSource], { type: 'text/javascript' });
-      const worker = new Worker(URL.createObjectURL(blob));
-
-      worker.onmessage = (evt: MessageEvent) => {
-        const data = evt.data;
-        if (!data) return;
-        if (data.type === 'result') resolve({ logs: data.logs || [], results: data.results || [] });
-        if (data.type === 'error') reject(new Error(data.error || 'Code execution failed.'));
-      };
-      worker.onerror = (evt) => reject(evt);
-
-      runTimeoutRef.current = window.setTimeout(() => {
-        try {
-          worker.terminate();
-        } catch {
-          // ignore
-        }
-        reject(new Error('Code execution timed out.'));
-      }, 4000);
-
-      worker.postMessage({ code, tests });
-    });
-
-  const JUDGE0_BASE_URL = 'https://ce.judge0.com';
-
-  const getJudge0LanguageId = (lang: string): number | null => {
-    // Judge0 language IDs (https://docs.judge0.com/)
-    switch (lang) {
-      case 'javascript':
-        return 63; // JavaScript (Node.js)
-      case 'python':
-        return 71; // Python 3
-      case 'java':
-        return 62; // Java
-      case 'cpp':
-        return 54; // C++ (GCC)
-      default:
-        return null;
-    }
-  };
-
-  const runSubmissionJudge0 = async (sourceCode: string, languageId: number, stdin: string) => {
-    const url = `${JUDGE0_BASE_URL}/submissions?base64_encoded=false&wait=true`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        language_id: languageId,
-        source_code: sourceCode,
-        stdin: stdin ?? '',
-      }),
-    });
-
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      const msg = data?.message || res.statusText || 'Judge0 request failed';
-      throw new Error(msg);
-    }
-    return data as any;
-  };
-
-  const handleRun = async () => {
-    if (!test || !test.questions || !test.questions[currentQ]) return;
-
-    const q = test.questions[currentQ];
-    const code = answers[currentQ] || '';
-
-    setRunError('');
-    setConsoleLines([]);
-    setTestRunResults([]);
-    setRunStatus('running');
-
-    if (!code.trim()) {
-      setRunStatus('error');
-      setRunError('Please write your solution code before running.');
-      return;
-    }
-
-    const tests = parseTestCases(q.testCases);
-    const noTests = !tests || tests.length === 0;
-
-    try {
-      // If there are too many tests, avoid flooding the runner service.
-      const maxTests = 20;
-      const trimmedTests = (noTests
-        ? [{ input: '', expectedOutput: '__NO_EXPECTED__' } as ParsedTestCase]
-        : tests.slice(0, maxTests)
-      );
-
-      if (codeLang === 'javascript') {
-        const res = await runJavaScriptAgainstTests(code, trimmedTests);
-        setConsoleLines(res.logs);
-        setTestRunResults(noTests ? res.results.map(r => ({ ...r, expected: 'N/A' })) : res.results);
-        setRunStatus('done');
-        return;
-      }
-
-      const languageId = getJudge0LanguageId(codeLang);
-      if (!languageId) {
-        setRunStatus('error');
-        setRunError(`Unsupported language for execution: ${codeLang}`);
-        return;
-      }
-
-      const results: TestRunResult[] = [];
-      const logs: string[] = [];
-
-      for (let i = 0; i < trimmedTests.length; i++) {
-        const t = trimmedTests[i];
-        const expected = String(t.expectedOutput ?? '').trim();
-
-        const judgeRes = await runSubmissionJudge0(code, languageId, String(t.input ?? ''));
-        const stdout = (judgeRes?.stdout ?? '').toString();
-        const stderr = (judgeRes?.stderr ?? '').toString();
-        const compileOutput = (judgeRes?.compile_output ?? '').toString();
-
-        const actualStdoutTrim = stdout.trim();
-        const runnerError = compileOutput?.trim() || stderr?.trim();
-        const hasRunnerError = Boolean(runnerError);
-        const pass = hasRunnerError
-          ? false
-          : (expected === '__NO_EXPECTED__' ? true : actualStdoutTrim === expected);
-
-        const actualForUi = actualStdoutTrim !== ''
-          ? actualStdoutTrim
-          : (runnerError ? runnerError : stdout);
-
-        results.push({
-          input: String(t.input ?? ''),
-          expected: noTests ? 'N/A' : expected,
-          actual: actualForUi,
-          pass,
-          error: runnerError ? runnerError : (!pass ? `Expected '${expected}' but got '${actualStdoutTrim}'` : undefined),
-        });
-
-        if (runnerError) {
-          logs.push(`Test ${i + 1} compile/runtime error:\n${runnerError}`);
-        } else if (!pass) {
-          logs.push(`Test ${i + 1} failed. stdout='${actualStdoutTrim}' expected='${expected}'`);
-        }
-      }
-
-      setConsoleLines(logs);
-      setTestRunResults(results);
-      setRunStatus('done');
-    } catch (err: any) {
-      setRunStatus('error');
-      setRunError(err?.message || 'Failed to run code.');
-    } finally {
-      if (runTimeoutRef.current) {
-        clearTimeout(runTimeoutRef.current);
-        runTimeoutRef.current = null;
-      }
-    }
-  };
-
-  const sendEmailWithApi = async (emailPayload: { to: string; subject: string; html: string; }) => {
-    try {
-      // IMPORTANT: This is a placeholder for your actual serverless function endpoint.
-      // This endpoint should be a backend function that securely sends the email.
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(emailPayload),
-      });
-  
-      if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
-      console.log("Email sent successfully via API.");
-    } catch (error) {
-      console.error("Could not send email via API, falling back to Firestore 'mail' collection.", error);
-      // Fallback to the original method if the API call fails
-      await addDoc(collection(db, 'mail'), {
-        to: emailPayload.to,
-        message: { subject: emailPayload.subject, html: emailPayload.html },
-      });
-    }
-  };
-
-  const handleSubmit = async () => {
+  const handleSubmit = async (reason?: string) => {
     if (!test || !test.questions) return;
     setSubmitting(true);
 
     let score = 0;
     let feedback = '';
 
-    if (test.type === 'aptitude') {
+    if (reason === 'terminated') {
+      score = 0;
+      feedback = 'Test terminated automatically due to security violations (left fullscreen too many times).';
+    } else if (test.type === 'aptitude') {
       let correctCount = 0;
       test.questions.forEach((q: any, i: number) => {
         if (answers[i] === q.correctIndex) correctCount++;
@@ -705,11 +443,105 @@ const TakeTest: React.FC = () => {
     const testDoc = await getDoc(doc(db, 'tests', testId!));
     const fullTestData = testDoc.data() as any;
 
-    const submissionStatus = (fullTestData.passingScore && score >= fullTestData.passingScore) ? 'passed' : 'failed';
+    console.log('[Assessment] Score:', score, '| Passing Score:', fullTestData.passingScore);
+    console.log('[Assessment] Next Interview ID:', fullTestData.nextInterviewId || 'none');
+    console.log('[Assessment] External Link:', fullTestData.externalInterviewLink || 'none');
+
+    let submissionStatus = (fullTestData.passingScore && score >= fullTestData.passingScore) ? 'passed' : 'failed';
+    if (reason === 'terminated') submissionStatus = 'terminated';
+    console.log('[Assessment] Status:', submissionStatus);
+
+    // If passed and there's a next step, generate token and send email
+    let emailSent = false;
+    let emailError = '';
+
+    if (submissionStatus === 'passed') {
+      console.log('[Assessment] Candidate PASSED! Checking for next round...');
+
+      // Internal AI Interview flow
+      if (fullTestData.nextInterviewId) {
+        console.log('[Assessment] Internal interview flow. Interview ID:', fullTestData.nextInterviewId);
+        try {
+          // Step 1: Fetch the interview details FIRST (read-only, allowed by rules)
+          const interviewDoc = await getDoc(doc(db, 'interviews', fullTestData.nextInterviewId));
+          if (!interviewDoc.exists()) {
+            console.error('[Assessment] Interview document not found for ID:', fullTestData.nextInterviewId);
+            emailError = 'Interview not found in database';
+          } else {
+            const interviewData = interviewDoc.data() as any;
+            const nextRoundAccessCode = interviewData?.accessCode || '';
+            const interviewTitle = interviewData?.title || test.title;
+            // Build the interview link directly (no token needed for access-code-based interviews)
+            const interviewLink = `${window.location.origin}/#/interview/${fullTestData.nextInterviewId}`;
+            console.log('[Assessment] Interview title:', interviewTitle, '| Access code:', nextRoundAccessCode);
+            console.log('[Assessment] Interview link:', interviewLink);
+
+            // Step 2: Try to create a one-time access token (optional, may fail for anonymous users)
+            let finalLink = interviewLink;
+            try {
+              const tokenDocRef = await addDoc(collection(db, 'interviewAccessTokens'), {
+                testId,
+                nextInterviewId: fullTestData.nextInterviewId,
+                candidateEmail: candidateInfo.email,
+                candidateName: candidateInfo.name,
+                generatedAt: serverTimestamp(),
+                isUsed: false,
+              });
+              finalLink = `${interviewLink}?token=${tokenDocRef.id}`;
+              console.log('[Assessment] Token created. Final link:', finalLink);
+            } catch (tokenErr) {
+              console.warn('[Assessment] Token creation failed (permissions), using direct link instead:', tokenErr);
+              // Continue with the direct interview link — the candidate can still use the access code
+            }
+
+            // Step 3: SEND THE EMAIL (this is the critical part)
+            console.log('[Assessment] Sending email to:', candidateInfo.email);
+            const emailResult = await sendInterviewInvitations(
+              [candidateInfo.email],
+              interviewTitle,
+              finalLink,
+              nextRoundAccessCode
+            );
+
+            console.log('[Assessment] Email result:', JSON.stringify(emailResult));
+            emailSent = emailResult.success;
+            if (!emailResult.success) emailError = emailResult.error || 'Failed to send email';
+          }
+        } catch (error: any) {
+          console.error('[Assessment] Error in internal interview email flow:', error);
+          emailError = error.message;
+        }
+
+      // External Link flow
+      } else if (fullTestData.externalInterviewLink) {
+        console.log('[Assessment] External link flow. Link:', fullTestData.externalInterviewLink);
+        try {
+          const emailResult = await sendInterviewInvitations(
+            [candidateInfo.email],
+            test.title,
+            fullTestData.externalInterviewLink,
+            fullTestData.externalAccessCode || ''
+          );
+
+          console.log('[Assessment] Email result:', JSON.stringify(emailResult));
+          emailSent = emailResult.success;
+          if (!emailResult.success) emailError = emailResult.error || 'Failed to send email';
+        } catch (error: any) {
+          console.error('[Assessment] Error in external interview email flow:', error);
+          emailError = error.message;
+        }
+      } else {
+        console.log('[Assessment] No next round configured (no nextInterviewId or externalInterviewLink).');
+      }
+    } else {
+      console.log('[Assessment] Candidate did NOT pass. No email will be sent.');
+    }
+
+    console.log('[Assessment] Final email status - Sent:', emailSent, '| Error:', emailError || 'none');
 
     await addDoc(collection(db, 'testSubmissions'), {
       testId,
-      candidateUID: user?.uid || candidateInfo.email, // Use email as fallback ID for anonymous users
+      candidateUID: user?.uid || candidateInfo.email,
       candidateName: candidateInfo.name,
       candidateEmail: candidateInfo.email,
       answers,
@@ -717,50 +549,10 @@ const TakeTest: React.FC = () => {
       feedback,
       status: submissionStatus,
       tabSwitchCount,
+      emailSent,
+      emailError,
       submittedAt: serverTimestamp()
     });
-
-    // If passed and there's a next step, generate token and send email
-    if (submissionStatus === 'passed') {
-      // Internal AI Interview flow
-      if (fullTestData.nextInterviewId) {
-        try {
-          const tokenDocRef = await addDoc(collection(db, 'interviewAccessTokens'), {
-            testId,
-            nextInterviewId: fullTestData.nextInterviewId,
-            candidateEmail: candidateInfo.email,
-            candidateName: candidateInfo.name,
-            generatedAt: serverTimestamp(),
-            isUsed: false,
-          });
-          const interviewToken = tokenDocRef.id;
-          const interviewLink = `${window.location.origin}/#/interview/${fullTestData.nextInterviewId}?token=${interviewToken}`;
-          
-          await sendEmailWithApi({
-            to: candidateInfo.email,
-            subject: `Congratulations! You've Passed the Assessment for ${test.title}`,
-            html: `<p>Dear ${candidateInfo.name},</p><p>Congratulations! You have successfully passed the online assessment for the <strong>${test.title}</strong> position.</p><p>Your performance was impressive, and we would like to invite you to the next stage: an AI-powered video interview.</p><p>Please use the link below to start your interview. This is a unique, one-time use link.</p><p><a href="${interviewLink}"><strong>Start Your AI Interview Now</strong></a></p><p>Best of luck!</p><p>The Hiring Team</p>`,
-          });
-        } catch (emailError) {
-          console.error("Error processing internal interview email:", emailError);
-        }
-      // External Link flow
-      } else if (fullTestData.externalInterviewLink) {
-        try {
-          const accessCodeInfo = fullTestData.externalAccessCode 
-            ? `<p><strong>Access Code:</strong> ${fullTestData.externalAccessCode}</p>` 
-            : '';
-
-          await sendEmailWithApi({
-            to: candidateInfo.email,
-            subject: `Congratulations! Next Steps for ${test.title}`,
-            html: `<p>Dear ${candidateInfo.name},</p><p>Congratulations! You have successfully passed the online assessment for the <strong>${test.title}</strong> position.</p><p>Please use the link below for the next round of the interview process.</p><p><a href="${fullTestData.externalInterviewLink}"><strong>Join Interview</strong></a></p>${accessCodeInfo}<p>Best of luck!</p><p>The Hiring Team</p>`,
-          });
-        } catch (emailError) {
-          console.error("Error processing external interview email:", emailError);
-        }
-      }
-    }
 
     if (document.fullscreenElement) {
       await document.exitFullscreen().catch(e => console.error(e));
@@ -802,6 +594,41 @@ const TakeTest: React.FC = () => {
     }} />;
   }
 
+  const renderFullscreenOverlay = () => {
+    if (step === 'test' && !isFullscreen && !isTerminated && !submitting && !resultData) {
+      return createPortal(
+        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex items-center justify-center p-6 text-white text-center">
+          <div className="max-w-md p-8 bg-[#111] rounded-2xl border border-red-500/30 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-yellow-500"></div>
+            <AlertTriangle size={48} className="mx-auto text-yellow-500 mb-4 animate-pulse" />
+            <h2 className="text-2xl font-bold mb-4">Fullscreen Required</h2>
+            <p className="text-gray-300 mb-6 font-medium text-sm leading-relaxed">
+              {hasEnteredFullscreenRef.current 
+                ? `You have exited fullscreen mode. The timer is paused. You have ${3 - fullscreenEscapes} escape(s) remaining before automatic termination.`
+                : "This assessment must be taken in fullscreen mode to ensure a secure environment. Please enter fullscreen to start."}
+            </p>
+            <button 
+              onClick={async () => {
+                try {
+                  await document.documentElement.requestFullscreen();
+                } catch (err) {
+                  console.error(err);
+                  alert("Fullscreen request denied. Please click the button again or use browser settings.");
+                }
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2"
+            >
+              <Terminal size={18} />
+              {hasEnteredFullscreenRef.current ? "Return to Fullscreen" : "Enter Fullscreen & Start"}
+            </button>
+          </div>
+        </div>,
+        document.body
+      );
+    }
+    return null;
+  };
+
   if (resultData || step === 'finish') {
     return (
       <div className={`min-h-screen flex flex-col items-center justify-center p-6 ${isDark ? 'bg-[#050505] text-white' : 'bg-gray-50 text-gray-900'}`}>
@@ -812,7 +639,11 @@ const TakeTest: React.FC = () => {
             </div>
             <h2 className="text-3xl font-bold mb-2">Assessment Completed</h2>
             <p className="text-gray-500 dark:text-gray-400">You scored <span className="text-blue-600 dark:text-blue-400 font-black text-xl">{resultData.score}%</span></p>
-            {resultData.passingScore && (
+            {resultData.status === 'terminated' ? (
+              <div className="mt-4 text-lg font-bold text-red-600 dark:text-red-500 bg-red-50 dark:bg-red-900/10 p-4 rounded-xl border border-red-200 dark:border-red-900/30">
+                Assessment terminated due to security rule violations (left fullscreen).
+              </div>
+            ) : resultData.passingScore && (
               <div className={`mt-4 text-lg font-bold ${resultData.status === 'passed' ? 'text-green-500' : 'text-red-500'}`}>
                 {resultData.status === 'passed' 
                   ? `Congratulations, you passed! (Passing score: ${resultData.passingScore}%)`
@@ -934,7 +765,8 @@ const TakeTest: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col ${isDark ? 'bg-[#050505] text-white' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`min-h-screen flex flex-col select-none ${isDark ? 'bg-[#050505] text-white' : 'bg-gray-50 text-gray-900'}`}>
+      {renderFullscreenOverlay()}
       {showCalculator && <Calculator onClose={() => setShowCalculator(false)} />}
 
       {/* Header */}
@@ -1024,74 +856,8 @@ const TakeTest: React.FC = () => {
                       </div>
                       <button className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors" title="Settings"><Settings size={14} /></button>
                     </div>
-                    <div className="flex-1 relative">
-                      <textarea
-                        value={answers[currentQ] || ''}
-                        onChange={e => handleAnswer(e.target.value)}
-                        onPaste={e => e.preventDefault()}
-                        className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6"
-                        placeholder={
-                          codeLang === 'javascript'
-                            ? "// Define function solution(input) { ... }\n// Return the expected output (string/number)."
-                            : `// Write your ${codeLang} solution here...`
-                        }
-                        spellCheck={false}
-                        style={{ tabSize: 2 }}
-                      />
-                    </div>
-                    <div className="bg-[#252526] border-t border-[#333]">
-                      <div className="flex items-center justify-between px-4 py-2">
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
-                          <Terminal size={12} />
-                          <span>Console</span>
-                        </div>
-                        <button
-                          onClick={handleRun}
-                          disabled={runStatus === 'running'}
-                          className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded transition-colors"
-                        >
-                          {runStatus === 'running' ? 'Running...' : (
-                            <>
-                              <Play size={12} /> Run
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <div className="px-4 pb-3">
-                        {runStatus === 'idle' && (
-                          <div className="text-[11px] text-gray-500">Press Run to execute and verify against test cases.</div>
-                        )}
-                        {runStatus === 'error' && runError && (
-                          <div className="mt-2 text-[12px] text-red-400 whitespace-pre-wrap">{runError}</div>
-                        )}
-                        {runStatus === 'done' && testRunResults.length > 0 && (
-                          <>
-                            <div className="mt-2 text-[11px] text-gray-400">
-                              Passed {testRunResults.filter(r => r.pass).length}/{testRunResults.length}
-                            </div>
-                            <div className="mt-2 max-h-28 overflow-y-auto">
-                              {testRunResults.map((r, idx) => (
-                                <div key={idx} className={`text-[12px] mb-1 ${r.pass ? 'text-green-300' : 'text-red-300'}`}>
-                                  Test {idx + 1}: {r.pass ? 'PASS' : 'FAIL'}
-                                  {r.error ? ` (${r.error})` : ''}
-                                  <div className="text-[11px] text-gray-500 mt-0.5">
-                                    input={r.input.trim()} | expected={r.expected.trim()} | actual={r.actual.trim()}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                        {consoleLines.length > 0 && (
-                          <div className="mt-3">
-                            <div className="text-[11px] text-gray-400 mb-1">Logs</div>
-                            <div className="max-h-24 overflow-y-auto bg-[#1e1e1e] border border-[#333] rounded-lg p-2 text-[11px] text-gray-300 whitespace-pre-wrap">
-                              {consoleLines.join('\n')}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    <div className="flex-1 relative"><textarea value={answers[currentQ] || ''} onChange={e => handleAnswer(e.target.value)} onPaste={e => e.preventDefault()} className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6" placeholder={`// Write your ${codeLang} solution here...`} spellCheck={false} style={{ tabSize: 2 }} /></div>
+                    <div className="bg-[#252526] border-t border-[#333]"><div className="flex items-center justify-between px-4 py-2"><div className="flex items-center gap-2 text-xs text-gray-400"><Terminal size={12} /><span>Console</span></div><button className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded transition-colors"><Play size={12} /> Run</button></div></div>
                   </div>
                 </div>
               </div>
@@ -1123,42 +889,9 @@ const TakeTest: React.FC = () => {
                           <option value="java">Java</option>
                           <option value="cpp">C++</option>
                         </select>
-                        <button
-                          onClick={handleRun}
-                          disabled={runStatus === 'running'}
-                          className="flex items-center gap-2 px-3 py-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded transition-colors"
-                        >
-                          {runStatus === 'running' ? 'Running...' : (
-                            <>
-                              <Play size={12} /> Run
-                            </>
-                          )}
-                        </button>
+                        <button className="flex items-center gap-2 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded transition-colors"><Play size={12} /> Run</button>
                       </div>
-                      <div className="flex-1 relative">
-                        <textarea
-                          value={answers[currentQ] || ''}
-                          onChange={e => handleAnswer(e.target.value)}
-                          onPaste={e => e.preventDefault()}
-                          className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6"
-                          placeholder={
-                            codeLang === 'javascript'
-                              ? "// Define function solution(input) { ... }\n// Return the expected output (string/number)."
-                              : `// Write your ${codeLang} solution here...`
-                          }
-                          spellCheck={false}
-                          style={{ tabSize: 2 }}
-                        />
-                      </div>
-                      <div className="bg-[#252526] border-t border-[#333] px-3 py-2 shrink-0">
-                        {runStatus === 'idle' && <div className="text-[11px] text-gray-500">Run to check test cases.</div>}
-                        {runStatus === 'error' && runError && <div className="text-[12px] text-red-400 whitespace-pre-wrap">{runError}</div>}
-                        {runStatus === 'done' && testRunResults.length > 0 && (
-                          <div className="text-[11px] text-gray-400">
-                            Passed {testRunResults.filter(r => r.pass).length}/{testRunResults.length}
-                          </div>
-                        )}
-                      </div>
+                      <div className="flex-1 relative"><textarea value={answers[currentQ] || ''} onChange={e => handleAnswer(e.target.value)} onPaste={e => e.preventDefault()} className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6" placeholder={`// Write your ${codeLang} solution here...`} spellCheck={false} style={{ tabSize: 2 }} /></div>
                     </div>
                   )}
                 </div>
@@ -1211,7 +944,7 @@ const TakeTest: React.FC = () => {
           {currentQ < test.questions.length - 1 ? (
             <button onClick={() => setCurrentQ(c => c + 1)} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">Next</button>
           ) : (
-            <button onClick={handleSubmit} disabled={submitting} className="px-8 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50">{submitting ? 'Submitting...' : 'Submit Test'}</button>
+            <button onClick={() => handleSubmit()} disabled={submitting} className="px-8 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50">{submitting ? 'Submitting...' : 'Submit Test'}</button>
           )}
         </div>
       </div>

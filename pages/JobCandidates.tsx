@@ -22,25 +22,34 @@ const JobCandidates: React.FC = () => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         try {
-          let q;
           if (jobId) {
             // Fetch Job Info
             const jobSnap = await getDoc(doc(db, 'jobs', jobId));
             if (jobSnap.exists()) {
               setJobTitle(jobSnap.data().title);
             }
-            q = query(
-              collection(db, 'interviews'),
-              where('jobId', '==', jobId),
+            // Correctly query the 'attempts' subcollection for the specific job/interview
+            const attemptsQuery = query(
+              collection(db, 'interviews', jobId, 'attempts'),
               orderBy('submittedAt', 'desc')
             );
+            const snap = await getDocs(attemptsQuery);
+            const submissions = snap.docs.map(doc => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                ...data,
+                candidateName: data.candidateInfo?.name,
+              } as Interview;
+            });
+            setInterviews(submissions);
           } else {
             setJobTitle('All Candidates');
-            q = query(collection(db, 'interviews'), orderBy('submittedAt', 'desc'));
+            // This path is for viewing all candidates across all jobs. The original query was likely incorrect.
+            const q = query(collection(db, 'interviews'), orderBy('submittedAt', 'desc'));
+            const snap = await getDocs(q);
+            setInterviews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Interview)));
           }
-
-          const snap = await getDocs(q);
-          setInterviews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Interview)));
         } catch (err) {
           console.error(err);
         }
@@ -52,23 +61,29 @@ const JobCandidates: React.FC = () => {
 
   if (loading) return <div className="text-center py-10">Loading candidates...</div>;
 
-  const handleStatusChange = async (interviewId: string, newStatus: string, candidateId: string) => {
+  const handleStatusChange = async (submissionId: string, newStatus: string, candidateId: string) => {
     try {
+      if (!jobId) {
+        console.error("Job ID is missing, cannot update status.");
+        alert("An error occurred: Job ID is missing.");
+        return;
+      }
       // 1. Update status in Firestore
-      await updateDoc(doc(db, 'interviews', interviewId), {
+      // The error was here: it was trying to update the top-level interview doc with a submission ID.
+      // This corrects the path to update the specific submission document within the 'attempts' subcollection.
+      await updateDoc(doc(db, 'interviews', jobId, 'attempts', submissionId), {
         status: newStatus
       });
 
       // 2. Update local state immediately
       setInterviews(prev => prev.map(i => 
-        i.id === interviewId ? { ...i, status: newStatus } : i
+        i.id === submissionId ? { ...i, status: newStatus } : i
       ));
 
       // 3. Notify candidate
       if (candidateId) {
         let notificationMessage = `Your application status has been updated to: ${newStatus}`;
         
-        // Custom messages for specific statuses
         switch (newStatus) {
           case 'Hired':
             notificationMessage = `Congratulations! You have been Hired for the position of ${jobTitle || 'the job'}.`;
@@ -83,7 +98,7 @@ const JobCandidates: React.FC = () => {
 
         await sendNotification(candidateId, notificationMessage, 'status_update', auth.currentUser?.uid, 'Recruiter');
       } else {
-        console.warn(`Cannot send notification: Candidate ID missing for interview ${interviewId}`);
+        console.warn(`Cannot send notification: Candidate ID missing for submission ${submissionId}`);
         alert("Status updated, but notification could not be sent (Candidate ID missing).");
       }
     } catch (error) {
@@ -211,7 +226,7 @@ const JobCandidates: React.FC = () => {
                 <div className="flex items-center justify-between w-full">
                   <select
                     value={interview.status || 'Pending'}
-                    onChange={(e) => handleStatusChange(interview.id, e.target.value, (interview as any).candidateUID || (interview as any).candidateId || (interview as any).userId || (interview as any).uid)}
+                    onChange={(e) => handleStatusChange(interview.id, e.target.value, (interview as any).candidateUID || (interview as any).candidateId || (interview as any).userId || (interview as any).uid || interview.candidateInfo?.email)}
                     className={`px-2 py-1 rounded text-xs font-semibold border-0 cursor-pointer outline-none focus:ring-2 focus:ring-primary/20 ${
                        interview.status === 'Hired' ? 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400' : 
                        interview.status === 'Rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
@@ -261,7 +276,7 @@ const JobCandidates: React.FC = () => {
                 </div>
                 
                 <Link 
-                  to={`/report/${interview.id}`} 
+                  to={`/report/${jobId}/${interview.id}`}
                   state={{ candidateId: (interview as any).candidateUID || (interview as any).candidateId || (interview as any).userId || (interview as any).uid }}
                   className="block w-full text-center py-2 bg-gray-50 dark:bg-slate-800 text-primary dark:text-blue-400 hover:bg-primary hover:text-white dark:hover:bg-primary dark:hover:text-white rounded-lg transition-colors text-sm font-medium"
                 >

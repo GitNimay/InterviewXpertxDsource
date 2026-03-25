@@ -131,7 +131,18 @@ const TestResults: React.FC = () => {
                   {sub.feedback && <p className="text-sm text-gray-400 mt-1 italic">"{sub.feedback}"</p>}
                 </div>
                 <div className="flex items-center gap-4">
+                <div className="flex flex-col items-end gap-2">
                   <div className={`text-2xl font-bold ${sub.score >= 70 ? 'text-green-500' : sub.score >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>{sub.score}%</div>
+                  {sub.emailSent !== undefined && (
+                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${sub.emailSent ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                      {sub.emailSent ? (
+                        <><Check size={10} strokeWidth={3} /> Email Sent</>
+                      ) : (
+                        <><X size={10} strokeWidth={3} /> Email Failed</>
+                      )}
+                    </div>
+                  )}
+                </div>
                   <div className="flex gap-2">
                     <button 
                       onClick={() => navigate(`/profile/${sub.candidateUID}`)}

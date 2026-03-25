@@ -165,6 +165,16 @@ service cloud.firestore {
                   );
     }
 
+    // --- Interview Access Tokens (generated when candidate passes an assessment) ---
+    match /interviewAccessTokens/{tokenId} {
+      // Allow anyone to create a token (anonymous candidates taking open assessments)
+      allow create: if true;
+      // Allow reading for interview access validation
+      allow read: if true;
+      // Only allow update by authenticated users (e.g., marking token as used)
+      allow update: if request.auth != null;
+    }
+
     // --- Contact Submissions ---
     match /contactSubmissions/{submissionId} {
       allow create: if true;
