@@ -6,7 +6,7 @@ import { db, auth } from '../services/firebase';
 import { GoogleGenAI } from '@google/genai';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { AlertTriangle, Clock, Code, Terminal, Play, FileCode, Settings, CheckCircle, Calculator as CalculatorIcon, Flag } from 'lucide-react';
+import { AlertTriangle, Clock, Code, Terminal, Play, FileCode, Settings, CheckCircle, Calculator as CalculatorIcon, Flag, X } from 'lucide-react';
 
 const TestInfoForm: React.FC<{ onSubmit: (info: {name: string, email: string}) => void }> = ({ onSubmit }) => {
   const [name, setName] = useState('');
@@ -32,41 +32,6 @@ const Calculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [firstOperand, setFirstOperand] = useState<number | null>(null);
   const [operator, setOperator] = useState<string | null>(null);
   const [waitingForSecondOperand, setWaitingForSecondOperand] = useState(false);
-  const calculatorRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ x: window.innerWidth / 2 - 160, y: window.innerHeight / 2 - 260 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartPos = useRef({ x: 0, y: 0 });
-  const initialPos = useRef({ x: 0, y: 0 });
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (calculatorRef.current) {
-      setIsDragging(true);
-      dragStartPos.current = { x: e.clientX, y: e.clientY };
-      initialPos.current = { x: position.x, y: position.y };
-    }
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      const dx = e.clientX - dragStartPos.current.x;
-      const dy = e.clientY - dragStartPos.current.y;
-      setPosition({
-        x: initialPos.current.x + dx,
-        y: initialPos.current.y + dy,
-      });
-    };
-
-    const handleMouseUp = () => setIsDragging(false);
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
 
   const handleDigit = (digit: string) => {
     if (history.includes('=')) {
@@ -213,34 +178,32 @@ const Calculator: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   ];
 
   return createPortal(
-    <div
-      ref={calculatorRef}
-      className="fixed z-[100] bg-black rounded-2xl shadow-2xl border border-gray-800 w-80 select-none"
-      style={{ top: position.y, left: position.x }}
-    >
-      <div onMouseDown={handleMouseDown} className="p-3 flex items-center cursor-move">
-        <div className="flex items-center gap-1.5">
-          <button onClick={onClose} className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 active:bg-red-700 transition-colors"></button>
-          <div className="w-3 h-3 rounded-full bg-yellow-500 cursor-not-allowed"></div>
-          <div className="w-3 h-3 rounded-full bg-green-500 cursor-not-allowed"></div>
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div
+        className="bg-black rounded-2xl shadow-2xl border border-gray-800 w-80 select-none animate-in fade-in-90 slide-in-from-bottom-10 duration-300"
+      >
+        <div className="p-3 flex items-center justify-between">
+          <span className="text-xs text-gray-400 font-bold">Calculator</span>
+          <button onClick={onClose} className="w-7 h-7 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-gray-300">
+              <X size={16} />
+          </button>
         </div>
-      </div>
-      <div className="p-6 pt-0">
-        <div className="text-right font-sans mb-4 h-24 flex flex-col justify-end">
-          <div className="text-gray-400 text-xl h-8 truncate">{history}</div>
-          <div className="text-white text-6xl font-light break-all leading-tight">{display}</div>
-        </div>
-        <div className="grid grid-cols-4 gap-3">
-          {buttonGrid.map(btn => (
-            <button
-              key={btn.label}
-              onClick={() => handleButtonClick(btn.value)}
-              disabled={btn.disabled}
-              className={`h-16 rounded-full text-2xl font-medium transition-colors transform active:scale-95 disabled:opacity-50 ${getButtonClass(btn.type)} ${btn.className || ''} ${btn.label === '0' ? 'text-left pl-6' : ''}`}
-            >
-              {btn.label}
-            </button>
-          ))}
+        <div className="p-6 pt-0">
+          <div className="text-right font-sans mb-4 h-24 flex flex-col justify-end">
+            <div className="text-gray-400 text-xl h-8 truncate">{history}</div>
+            <div className="text-white text-6xl font-light break-all leading-tight">{display}</div>
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            {buttonGrid.map(btn => (
+              <button
+                key={btn.label}
+                onClick={() => handleButtonClick(btn.value)}
+                className={`h-16 rounded-full text-2xl font-medium transition-colors transform active:scale-95 disabled:opacity-50 ${getButtonClass(btn.type as any)} ${btn.className || ''} ${btn.label === '0' ? 'text-left pl-6' : ''}`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>,
@@ -265,6 +228,7 @@ const TakeTest: React.FC = () => {
   const [showPromoPopup, setShowPromoPopup] = useState(false);
   const [markedQuestions, setMarkedQuestions] = useState<Record<number, boolean>>({});
   const [showCalculator, setShowCalculator] = useState(false);
+  const [activeCodeTab, setActiveCodeTab] = useState<'problem' | 'code'>('problem');
   
   const [step, setStep] = useState<'collect-info' | 'test' | 'finish'>(user ? 'test' : 'collect-info');
   const [candidateInfo, setCandidateInfo] = useState({
@@ -639,23 +603,23 @@ const TakeTest: React.FC = () => {
       {showCalculator && <Calculator onClose={() => setShowCalculator(false)} />}
 
       {/* Header */}
-      <div className="p-6 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold">{test.title}</h1>
+      <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="text-center sm:text-left">
+          <h1 className="text-lg sm:text-xl font-bold">{test.title}</h1>
           <p className="text-sm text-gray-500">Question {currentQ + 1} of {test.questions.length}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center flex-wrap justify-center gap-2 sm:gap-4">
           {timeLeft !== null && (
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-bold ${timeLeft < 60 ? 'text-red-600 bg-red-50 dark:bg-red-900/20' : 'text-gray-600 bg-gray-50 dark:bg-gray-700/20'}`}>
-              <Clock size={16} /> {formatTime(timeLeft)}
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold ${timeLeft < 60 ? 'text-red-600 bg-red-50 dark:bg-red-900/20' : 'text-gray-600 bg-gray-50 dark:bg-gray-700/20'}`}>
+              <Clock size={16} /> <span className="hidden sm:inline">Time:</span> {formatTime(timeLeft)}
             </div>
           )}
-          <div className="flex items-center gap-2 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1 rounded-lg text-sm font-bold">
-            <AlertTriangle size={16} /> No Copy Paste Allowed
+          <div className="hidden md:flex items-center gap-2 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold">
+            <AlertTriangle size={16} /> No Copy Paste
           </div>
-          <div onClick={() => setShowCalculator(true)} className="flex items-center gap-2 text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-lg text-sm font-bold cursor-pointer">
-            <CalculatorIcon size={16} /> Calculator
-          </div>
+          <button onClick={() => setShowCalculator(true)} className="flex items-center gap-2 text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold cursor-pointer">
+            <CalculatorIcon size={16} /> <span className="hidden sm:inline">Calculator</span>
+          </button>
         </div>
       </div>
 
@@ -667,10 +631,10 @@ const TakeTest: React.FC = () => {
       )}
 
       {/* Content */}
-      <div className="flex-1 grid grid-cols-12 gap-6 p-6 min-h-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 md:p-6 min-h-0">
         {/* Main Question Area */}
-        <div className="col-span-12 lg:col-span-9 flex flex-col min-h-0">
-          {test.type === 'aptitude' ? (
+        <div className="lg:col-span-9 flex flex-col min-h-0">
+          {test.type === 'aptitude' ? ( // APTITUDE VIEW
             <div className="bg-white dark:bg-[#111] p-8 rounded-2xl shadow-sm border border-gray-200 dark:border-white/10">
               <h2 className="text-xl font-bold mb-6">{question.question || 'Question text missing'}</h2>
               <div className="space-y-3">
@@ -688,95 +652,91 @@ const TakeTest: React.FC = () => {
                 ))}
               </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 h-full min-h-0">
-              {/* Problem Description Panel */}
-              <div className="lg:col-span-2 bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#161616] flex items-center gap-2">
-                  <FileCode size={18} className="text-blue-500" />
-                  <h2 className="font-bold text-gray-800 dark:text-white">Problem Description</h2>
-                </div>
-                <div className="p-6 overflow-y-auto flex-1 prose dark:prose-invert max-w-none">
-                  <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">{question.title || 'Problem Title'}</h3>
-                  <div className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap mb-6 text-sm leading-relaxed">
-                    {question.description || 'No description provided.'}
-                  </div>
-
-                  <div className="mt-6">
-                    <h4 className="text-sm font-bold uppercase text-gray-500 dark:text-gray-400 mb-3 tracking-wider">Test Cases</h4>
-                    <div className="bg-gray-50 dark:bg-[#1a1a1a] p-4 rounded-xl border border-gray-200 dark:border-white/5 font-mono text-sm text-gray-700 dark:text-gray-300">
-                      {question.testCases || 'No test cases provided.'}
+          ) : ( // CODING VIEW
+            <>
+              {/* Desktop Grid View */}
+              <div className="hidden lg:grid grid-cols-5 gap-6 h-full min-h-0">
+                <div className="lg:col-span-2 h-full">
+                  <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden shadow-sm h-full">
+                    <div className="p-4 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#161616] flex items-center gap-2">
+                      <FileCode size={18} className="text-blue-500" />
+                      <h2 className="font-bold text-gray-800 dark:text-white">Problem Description</h2>
                     </div>
+                    <div className="p-6 overflow-y-auto flex-1 prose dark:prose-invert max-w-none">
+                      <h3 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">{question.title || 'Problem Title'}</h3>
+                      <div className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap mb-6 text-sm leading-relaxed">
+                        {question.description || 'No description provided.'}
+                      </div>
+                      <div className="mt-6">
+                        <h4 className="text-sm font-bold uppercase text-gray-500 dark:text-gray-400 mb-3 tracking-wider">Test Cases</h4>
+                        <div className="bg-gray-50 dark:bg-[#1a1a1a] p-4 rounded-xl border border-gray-200 dark:border-white/5 font-mono text-sm text-gray-700 dark:text-gray-300">
+                          {question.testCases || 'No test cases provided.'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="lg:col-span-3 h-full">
+                  <div className="flex flex-col bg-[#1e1e1e] rounded-2xl overflow-hidden border border-gray-700 shadow-2xl h-full">
+                    <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#333]">
+                      <div className="flex items-center gap-4">
+                        <select value={codeLang} onChange={e => setCodeLang(e.target.value)} className="bg-[#333] text-gray-200 text-xs rounded px-2 py-1 border border-[#444] focus:outline-none focus:border-blue-500 hover:bg-[#3c3c3c] transition-colors cursor-pointer">
+                          <option value="javascript">JavaScript</option>
+                          <option value="python">Python</option>
+                          <option value="java">Java</option>
+                          <option value="cpp">C++</option>
+                        </select>
+                      </div>
+                      <button className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors" title="Settings"><Settings size={14} /></button>
+                    </div>
+                    <div className="flex-1 relative"><textarea value={answers[currentQ] || ''} onChange={e => handleAnswer(e.target.value)} onPaste={e => e.preventDefault()} className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6" placeholder={`// Write your ${codeLang} solution here...`} spellCheck={false} style={{ tabSize: 2 }} /></div>
+                    <div className="bg-[#252526] border-t border-[#333]"><div className="flex items-center justify-between px-4 py-2"><div className="flex items-center gap-2 text-xs text-gray-400"><Terminal size={12} /><span>Console</span></div><button className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded transition-colors"><Play size={12} /> Run</button></div></div>
                   </div>
                 </div>
               </div>
 
-              {/* Code Editor Panel */}
-              <div className="lg:col-span-3 flex flex-col bg-[#1e1e1e] rounded-2xl overflow-hidden border border-gray-700 shadow-2xl">
-                {/* Editor Toolbar */}
-                <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#333]">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Code size={16} className="text-gray-400" />
-                      <span className="text-xs font-medium text-gray-300">Code Editor</span>
-                    </div>
-                    <div className="h-4 w-px bg-[#444]"></div>
-                    <select
-                      value={codeLang}
-                      onChange={e => setCodeLang(e.target.value)}
-                      className="bg-[#333] text-gray-200 text-xs rounded px-2 py-1 border border-[#444] focus:outline-none focus:border-blue-500 hover:bg-[#3c3c3c] transition-colors cursor-pointer"
-                    >
-                      <option value="javascript">JavaScript</option>
-                      <option value="python">Python</option>
-                      <option value="java">Java</option>
-                      <option value="cpp">C++</option>
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button className="p-1.5 hover:bg-[#333] rounded text-gray-400 hover:text-white transition-colors" title="Settings">
-                      <Settings size={14} />
-                    </button>
+              {/* Mobile Tab View */}
+              <div className="lg:hidden flex flex-col h-full">
+                <div className="flex-shrink-0">
+                  <div className="flex border-b border-gray-200 dark:border-white/10">
+                    <button onClick={() => setActiveCodeTab('problem')} className={`px-4 py-2 font-bold text-sm ${activeCodeTab === 'problem' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-500'}`}>Problem</button>
+                    <button onClick={() => setActiveCodeTab('code')} className={`px-4 py-2 font-bold text-sm ${activeCodeTab === 'code' ? 'border-b-2 border-blue-500 text-blue-500' : 'text-gray-500'}`}>Code</button>
                   </div>
                 </div>
-
-                {/* Editor Area */}
-                <div className="flex-1 relative group bg-[#1e1e1e]">
-                  {/* Line Numbers (Visual only) */}
-                  <div className="absolute left-0 top-0 bottom-0 w-10 bg-[#1e1e1e] border-r border-[#333] flex flex-col items-end pt-4 pr-2 text-gray-600 text-xs font-mono select-none pointer-events-none">
-                    {Array.from({ length: 20 }).map((_, i) => <div key={i} className="leading-6">{i + 1}</div>)}
-                  </div>
-                  <textarea
-                    value={answers[currentQ] || ''}
-                    onChange={e => handleAnswer(e.target.value)}
-                    onPaste={e => e.preventDefault()}
-                    className="w-full h-full pl-12 pr-4 py-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6"
-                    placeholder={`// Write your ${codeLang} solution here...\n\nfunction solution() {\n  // your code\n}`}
-                    spellCheck={false}
-                    style={{ tabSize: 2 }}
-                  />
-                </div>
-
-                {/* Editor Footer / Console */}
-                <div className="bg-[#252526] border-t border-[#333]">
-                  <div className="flex items-center justify-between px-4 py-2">
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <Terminal size={12} />
-                      <span>Console Output</span>
+                <div className="flex-1 min-h-0 py-4">
+                  {activeCodeTab === 'problem' ? (
+                    <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 flex flex-col overflow-hidden shadow-sm h-full">
+                      <div className="p-4 overflow-y-auto flex-1 prose dark:prose-invert max-w-none">
+                        <h3 className="text-lg font-bold mb-2 text-gray-900 dark:text-white">{question.title || 'Problem Title'}</h3>
+                        <div className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap mb-4 text-sm leading-relaxed">{question.description || 'No description provided.'}</div>
+                        <h4 className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 mb-2 tracking-wider">Test Cases</h4>
+                        <div className="bg-gray-50 dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-white/5 font-mono text-xs text-gray-700 dark:text-gray-300">{question.testCases || 'No test cases provided.'}</div>
+                      </div>
                     </div>
-                    <button className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded transition-colors">
-                      <Play size={12} /> Run Code
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="flex flex-col bg-[#1e1e1e] rounded-2xl overflow-hidden border border-gray-700 shadow-2xl h-full">
+                      <div className="flex items-center justify-between px-4 py-2 bg-[#252526] border-b border-[#333]">
+                        <select value={codeLang} onChange={e => setCodeLang(e.target.value)} className="bg-[#333] text-gray-200 text-xs rounded px-2 py-1 border border-[#444] focus:outline-none focus:border-blue-500 hover:bg-[#3c3c3c] transition-colors cursor-pointer">
+                          <option value="javascript">JavaScript</option>
+                          <option value="python">Python</option>
+                          <option value="java">Java</option>
+                          <option value="cpp">C++</option>
+                        </select>
+                        <button className="flex items-center gap-2 px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded transition-colors"><Play size={12} /> Run</button>
+                      </div>
+                      <div className="flex-1 relative"><textarea value={answers[currentQ] || ''} onChange={e => handleAnswer(e.target.value)} onPaste={e => e.preventDefault()} className="w-full h-full p-4 bg-[#1e1e1e] text-gray-300 font-mono text-sm resize-none outline-none leading-6" placeholder={`// Write your ${codeLang} solution here...`} spellCheck={false} style={{ tabSize: 2 }} /></div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 
         {/* Question Palette */}
-        <div className="col-span-12 lg:col-span-3 bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 flex flex-col">
+        <div className="lg:col-span-3 bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 flex flex-col">
           <h3 className="font-bold mb-4 text-center">Question Palette</h3>
-          <div className="grid grid-cols-5 gap-2 flex-1">
+          <div className="grid grid-cols-6 sm:grid-cols-5 gap-2 flex-1">
             {test.questions.map((_: any, i: number) => {
               const isAnswered = answers[i] !== undefined && answers[i] !== '';
               const isMarked = markedQuestions[i];
@@ -790,7 +750,7 @@ const TakeTest: React.FC = () => {
                 <button
                   key={i}
                   onClick={() => setCurrentQ(i)}
-                  className={`relative w-10 h-10 rounded-lg border text-sm font-bold flex items-center justify-center transition-all ${statusClass}`}
+                  className={`relative w-full aspect-square rounded-lg border text-sm font-bold flex items-center justify-center transition-all ${statusClass}`}
                 >
                   {i + 1}
                   {isMarked && <Flag size={10} className="absolute -top-1 -right-1 text-red-500" fill="currentColor" />}
@@ -807,17 +767,19 @@ const TakeTest: React.FC = () => {
       </div>
 
       {/* Footer */}
-      <div className="p-6 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] flex justify-end gap-4">
-        <button onClick={handleMarkForReview} className={`px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors ${markedQuestions[currentQ] ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5'}`}>
+      <div className="p-4 md:p-6 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] flex flex-wrap items-center justify-center md:justify-end gap-4">
+        <button onClick={handleMarkForReview} className={`order-last md:order-first px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-colors ${markedQuestions[currentQ] ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400' : 'text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5'}`}>
           <Flag size={16} /> Mark for Review
         </button>
-        <div className="flex-grow"></div>
-        {currentQ > 0 && <button onClick={() => setCurrentQ(c => c - 1)} className="px-6 py-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10">Previous</button>}
-        {currentQ < test.questions.length - 1 ? (
-          <button onClick={() => setCurrentQ(c => c + 1)} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">Next</button>
-        ) : (
-          <button onClick={handleSubmit} disabled={submitting} className="px-8 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50">{submitting ? 'Submitting...' : 'Submit Test'}</button>
-        )}
+        <div className="flex-grow md:flex-grow-0"></div>
+        <div className="flex items-center gap-3">
+          {currentQ > 0 && <button onClick={() => setCurrentQ(c => c - 1)} className="px-6 py-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10">Previous</button>}
+          {currentQ < test.questions.length - 1 ? (
+            <button onClick={() => setCurrentQ(c => c + 1)} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">Next</button>
+          ) : (
+            <button onClick={handleSubmit} disabled={submitting} className="px-8 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50">{submitting ? 'Submitting...' : 'Submit Test'}</button>
+          )}
+        </div>
       </div>
     </div>
   );
