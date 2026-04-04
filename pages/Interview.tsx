@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { doc, getDoc, addDoc, collection, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { uploadToCloudinary, generateInterviewQuestions, requestTranscription, fetchTranscriptText, generateFeedback, generateOpenAITTS } from '../services/api';
-import { Interview, InterviewState, CandidateInfo } from '../types';
+import { uploadToCloudinary, generateInterviewQuestions, requestTranscription, fetchTranscriptText, generateFeedback } from '../services/api';
+import { speak } from '../lib/tts';
+import { Interview, InterviewState } from '../types';
 import { createPortal } from 'react-dom';
 import { LanguageSelector } from './LanguageSelector';
 import { useAuth } from '../context/AuthContext';
@@ -348,12 +349,6 @@ const CandidateInterviewFlow: React.FC = () => {
   // 2. Handle Candidate Info Submission
   const handleInfoSubmit = async (submittedInfo: CandidateInfo, submittedFile: File | null, existingResumeUrl?: string) => {
     setCandidateInfo(submittedInfo);
-
-    try {
-      if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
-    } catch (e) {
-      console.error("Fullscreen blocked", e);
-    }
 
     setStep('setup');
     setLoadingMsg("Processing your information...");
@@ -811,87 +806,33 @@ const ActiveInterviewSession: React.FC<{
     setupCamera();
     return () => {
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      speak.stop();
     };
   }, []);
 
-  // TTS auto-play — Using Google Cloud TTS Network API for robust multi-language support (English, Hindi, Marathi)
+  // TTS auto-play — Kokoro TTS (English) / Web Speech API (Hindi, Marathi)
+  // Reads the current question aloud as soon as it appears on screen.
   useEffect(() => {
     if (!currentQ) return;
 
-    let cancelled = false;
-    let currentAudio: HTMLAudioElement | null = null;
-    let playTimeout: any = null;
+    // Map the short language code from candidate selection to BCP-47
+    const langMap: Record<string, string> = { en: 'en', hi: 'hi-IN', mr: 'mr-IN' };
+    const ttsLang = langMap[state.language] || 'en';
 
-    // Split text into small chunks (~100 chars max) to comply with TTS API limits
-    const splitIntoChunks = (text: string): string[] => {
-      const raw = text.match(/[^.!?;,]+[.!?;,]?/g) || [text];
-      const chunks: string[] = [];
-      let current = '';
-      for (const part of raw) {
-        if ((current + part).length > 100 && current.length > 0) {
-          chunks.push(current.trim());
-          current = part;
-        } else {
-          current += part;
-        }
-      }
-      if (current.trim()) chunks.push(current.trim());
-      return chunks.length > 0 ? chunks : [text];
-    };
-
-    const chunks = splitIntoChunks(currentQ);
-    let idx = 0;
-
-    const playNext = async () => {
-      if (cancelled || idx >= chunks.length) return;
-      
-      const text = chunks[idx];
-      
-      try {
-        const url = await generateOpenAITTS(text);
-        if (cancelled) return;
-        
-        currentAudio = new Audio(url);
-        currentAudio.onended = () => { 
-          URL.revokeObjectURL(url);
-          idx++; 
-          playNext(); 
-        };
-        currentAudio.onerror = (e) => { 
-          console.warn("TTS Audio Error:", e);
-          URL.revokeObjectURL(url);
-          idx++; 
-          playNext(); 
-        };
-        
-        currentAudio.play().catch(e => {
-          console.warn("Audio auto-play blocked or failed:", e);
-          URL.revokeObjectURL(url);
-          idx++;
-          playNext();
-        });
-      } catch (e) {
-        console.warn("OpenAI TTS Generation Error:", e);
-        // Skip this chunk natively if it fails
-        idx++;
-        playNext();
-      }
-    };
-
-    playTimeout = setTimeout(() => {
-      if (!cancelled) playNext();
-    }, 600);
+    // Small delay so the question text renders before audio starts
+    const timeout = setTimeout(() => {
+      speak(currentQ, {
+        lang: ttsLang,
+        onEnd: () => console.log('[TTS] Finished reading question'),
+        onError: (err) => console.warn('[TTS] Error reading question:', err),
+      });
+    }, 400);
 
     return () => {
-      cancelled = true;
-      if (playTimeout) clearTimeout(playTimeout);
-      if (currentAudio) {
-        currentAudio.pause();
-        currentAudio.src = '';
-      }
+      clearTimeout(timeout);
+      speak.stop();
     };
-  }, [currentQ]);
+  }, [currentQ, state.language]);
 
 
 
@@ -915,7 +856,6 @@ const ActiveInterviewSession: React.FC<{
   }, [isRecording, timeLeft, isFullscreen, isTerminated]);
 
   const startRecording = () => {
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (!streamRef.current) return;
 
     const recorder = new MediaRecorder(streamRef.current, { videoBitsPerSecond: 250000 });
@@ -1227,6 +1167,7 @@ const InterviewSubmission: React.FC<{
   const [reportUrl, setReportUrl] = useState('');
   const navigate = useNavigate();
   const [factIndex, setFactIndex] = useState(0);
+  const hasSubmittedRef = useRef(false);
   const facts = [
     "The first computer bug was a real moth.", "Symbolics.com was the first domain.", "NASA's internet is 91 GB/s.",
     "The Firefox logo is a red panda.", "Email existed before the Web."
@@ -1238,6 +1179,11 @@ const InterviewSubmission: React.FC<{
   }, [facts.length]);
 
   useEffect(() => {
+    // Guard: only run once — object deps (state, candidateInfo, cvStats) cause
+    // React to re-fire this effect on every render, creating duplicate reports.
+    if (hasSubmittedRef.current) return;
+    hasSubmittedRef.current = true;
+
     const finalize = async () => {
       try {
         // Transcripts are now directly available in the state, no fetching needed.
@@ -1282,7 +1228,8 @@ const InterviewSubmission: React.FC<{
       }
     };
     finalize();
-  }, [state, interviewId, candidateInfo, tabSwitches, cvStats, user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
       <>
