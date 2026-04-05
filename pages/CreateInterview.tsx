@@ -22,6 +22,8 @@ const CreateInterview: React.FC = () => {
   const [currentEmail, setCurrentEmail] = useState('');
   const [parsingResumes, setParsingResumes] = useState(false);
   const [sendingEmails, setSendingEmails] = useState(false);
+  const [manualQuestions, setManualQuestions] = useState<string[]>([]);
+  const [currentManualQuestion, setCurrentManualQuestion] = useState('');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -32,6 +34,7 @@ const CreateInterview: React.FC = () => {
     skills: '',
     education: '',
     deadline: '',
+    numQuestions: 5,
   });
 
   useEffect(() => {
@@ -89,6 +92,17 @@ const CreateInterview: React.FC = () => {
     setFormData({ ...formData, skills: newSkills.join(', ') });
   };
 
+  const handleAddManualQuestion = () => {
+    if (currentManualQuestion.trim()) {
+      setManualQuestions([...manualQuestions, currentManualQuestion.trim()]);
+      setCurrentManualQuestion('');
+    }
+  };
+
+  const handleRemoveManualQuestion = (index: number) => {
+    setManualQuestions(manualQuestions.filter((_, i) => i !== index));
+  };
+
   const handleAddEmail = () => {
     if (currentEmail && !candidateEmails.includes(currentEmail)) {
       setCandidateEmails([...candidateEmails, currentEmail]);
@@ -109,7 +123,7 @@ const CreateInterview: React.FC = () => {
     let filesProcessed = 0;
     let filesWithErrors = 0;
 
-    for (const file of Array.from(files)) {
+    for (const file of Array.from(files) as File[]) {
       let text = '';
       try {
         if (file.type === 'application/pdf') {
@@ -159,6 +173,7 @@ const CreateInterview: React.FC = () => {
     try {
       await setDoc(doc(db, 'interviews', interviewId), {
         ...formData,
+        manualQuestions,
         candidateEmails,
         interviewLink,
         accessCode,
@@ -357,6 +372,76 @@ const CreateInterview: React.FC = () => {
                 })}
               </div>
             </div>
+          </div>
+
+          <div className="space-y-2 form-field">
+            <label className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <i className="fa-solid fa-robot text-blue-500"></i>
+              Number of AI-Generated Questions
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Specify how many questions the AI should create based on the job description.</p>
+            <input
+              type="number" min="1" max="15"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
+              value={formData.numQuestions}
+              onChange={e => setFormData({ ...formData, numQuestions: parseInt(e.target.value) || 5 })}
+            />
+          </div>
+
+          <div className="space-y-4 form-field p-6 bg-blue-50/50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/20 rounded-2xl">
+            <div>
+              <label className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <i className="fa-solid fa-clipboard-question text-blue-500"></i>
+                Manual Interview Questions (Optional)
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Add specific questions you want the AI to ask during the interview.</p>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="flex-1 px-4 py-3 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
+                placeholder="e.g. Tell us about your experience with React..."
+                value={currentManualQuestion}
+                onChange={e => setCurrentManualQuestion(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddManualQuestion();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleAddManualQuestion}
+                className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-lg shadow-blue-500/20"
+              >
+                <i className="fa-solid fa-plus text-xs"></i>
+                Add
+              </button>
+            </div>
+
+            {manualQuestions.length > 0 && (
+              <div className="space-y-2 mt-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                {manualQuestions.map((q, index) => (
+                  <div key={index} className="flex items-start justify-between p-3.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl animate-in fade-in slide-in-from-left-2 duration-300">
+                    <div className="flex gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold flex items-center justify-center">
+                        {index + 1}
+                      </span>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{q}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveManualQuestion(index)}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                    >
+                      <i className="fa-solid fa-trash-can text-sm"></i>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2 form-field">

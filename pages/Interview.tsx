@@ -387,15 +387,18 @@ const CandidateInterviewFlow: React.FC = () => {
       }
 
       setLoadingMsg("AI is generating tailored questions... (approx 30s)");
-      const questions = await generateInterviewQuestions(
+      const aiQuestions = await generateInterviewQuestions(
         interview!.title,
         interview!.description,
         userProfile?.experience ? `${userProfile.experience} years` : "0 years",
         base64String,
         resumeMimeType,
         submittedInfo.language,
-        interview!.numQuestions || 5
+        (interview as any).numQuestions || 5
       );
+
+      const manualQuestions = (interview as any).manualQuestions || [];
+      const questions = [...manualQuestions, ...aiQuestions];
 
       setInterviewState((prev) => ({
         ...prev,
