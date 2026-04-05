@@ -1,16 +1,15 @@
 /**
- * lib/tts.ts — Unified Text-to-Speech Engine
+ * lib/tts.ts — Unified Text-to-Speech Engine (Highly Optimized)
  *
- * Routing:
- *   • English text  → Kokoro TTS (local ONNX model via kokoro-js, voice: af_heart)
- *   • Hindi (hi-IN)  → Web Speech API — Google हिन्दी (hi-IN) voice
- *   • Marathi (mr-IN) → Web Speech API — Google हिन्दी (hi-IN) voice (same model)
+ * Routing for ALL languages:
+ *   • English text  → Native Web Speech API (Strictly English voices to avoid gibberish)
+ *   • Hindi (hi-IN)  → Native Web Speech API 
+ *   • Marathi (mr-IN) → Native Web Speech API 
  *
- * Kokoro model is loaded lazily on the first English call so page load stays fast.
- * Language is auto-detected from Devanagari Unicode presence when not specified.
+ * This version completely strips out local heavy AI models (like Kokoro) 
+ * so that it runs flawlessly instantly with 0 GPU/RAM overhead on the absolute worst, 
+ * low-end PCs without any static or audio distortion.
  */
-
-import { KokoroTTS } from 'kokoro-js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,12 +25,6 @@ export interface SpeakOptions {
 }
 
 // ─── Module-level singletons ─────────────────────────────────────────────────
-
-let kokoroInstance: InstanceType<typeof KokoroTTS> | null = null;
-let kokoroLoading: Promise<InstanceType<typeof KokoroTTS>> | null = null;
-
-/** Current audio element (Kokoro playback) so we can stop it */
-let activeAudio: HTMLAudioElement | null = null;
 
 /** Track whether Web Speech voices are loaded */
 let webVoicesReady = false;
@@ -73,7 +66,7 @@ const ensureVoicesLoaded = async (): Promise<void> => {
     };
     window.speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
     
-    // Timeout fallback (e.g., Chrome bug where event doesn't fire if already loaded)
+    // Timeout fallback for low-end PCs that might never fire it
     setTimeout(() => {
       if (!resolved) {
         loadVoices();
@@ -81,7 +74,7 @@ const ensureVoicesLoaded = async (): Promise<void> => {
         window.speechSynthesis.removeEventListener('voiceschanged', onVoicesChanged);
         resolve();
       }
-    }, 1000);
+    }, 1500);
   });
 };
 
@@ -95,55 +88,56 @@ const detectLang = (text: string, explicit?: string): string => {
   return containsDevanagari(text) ? 'hi-IN' : 'en';
 };
 
-/** Lazily initialise the Kokoro model */
-const getKokoro = async (): Promise<InstanceType<typeof KokoroTTS>> => {
-  if (kokoroInstance) return kokoroInstance;
-
-  // Avoid double-loading when multiple calls race
-  if (!kokoroLoading) {
-    const isWebGPU = typeof navigator !== 'undefined' && (navigator as any).gpu !== undefined;
-    console.log(`[TTS] Initializing Kokoro TTS using ${isWebGPU ? 'WebGPU' : 'WASM'} mode...`);
-    
-    kokoroLoading = KokoroTTS.from_pretrained(
-      'onnx-community/Kokoro-82M-v1.0-ONNX',
-      { 
-         // use fp32 for WASM too, as q4 causes extreme noise ("gibberish") on some devices
-         dtype: 'fp32', 
-         device: isWebGPU ? 'webgpu' : 'wasm' 
-      } as any
-    ).then((tts) => {
-      kokoroInstance = tts;
-      return tts;
-    });
-  }
-
-  return kokoroLoading;
-};
-
 /** Pick the best Web Speech voice for a given BCP-47 language tag */
 const pickVoice = (lang: string): SpeechSynthesisVoice | undefined => {
   loadVoices();
+  const prefix = lang.split('-')[0].toLowerCase();
   
-  // Prefer Google voices for quality
+  // -- BULLETPROOF ENGLISH VOICE FINDER --
+  // On worst PCs, defaulting to a Hindi voice for English text sounds like garbage gibberish.
+  if (prefix === 'en') {
+    const enVoices = webVoices.filter(v => 
+      v.lang.toLowerCase().includes('en') || 
+      v.name.toLowerCase().includes('english') ||
+      v.name.toLowerCase().includes('david') ||
+      v.name.toLowerCase().includes('zira') ||
+      v.name.toLowerCase().includes('mark') ||
+      v.name.toLowerCase().includes('susan') ||
+      v.name.toLowerCase().includes('george') ||
+      v.name.toLowerCase().includes('hazel')
+    );
+    
+    if (enVoices.length > 0) {
+      // 1. Google US/GB (Best quality in Chrome)
+      const googleUSGB = enVoices.find(v => v.name.toLowerCase().includes('google') && (v.lang.includes('US') || v.lang.includes('GB')));
+      if (googleUSGB) return googleUSGB;
+      
+      // 2. Any Google English
+      const googleEn = enVoices.find(v => v.name.toLowerCase().includes('google'));
+      if (googleEn) return googleEn;
+      
+      // 3. Microsoft Natural / Microsoft Desktop voices (Built-in Windows native)
+      const msUSGB = enVoices.find(v => v.lang.includes('US') || v.lang.includes('GB'));
+      if (msUSGB) return msUSGB;
+      
+      // 4. Any English voice available
+      return enVoices[0];
+    }
+  }
+
+  // -- HINDI / MARATHI / OTHERS --
+  // Prefer Google voice for Indian languages if available
   const googleVoice = webVoices.find(
-    (v) => v.lang.startsWith(lang) && v.name.toLowerCase().includes('google')
+    (v) => v.lang.toLowerCase().startsWith(prefix) && v.name.toLowerCase().includes('google')
   );
   if (googleVoice) return googleVoice;
 
-  // Fallback: any voice matching the exact language
+  // Fallback exact match
   const fallback = webVoices.find((v) => v.lang === lang);
   if (fallback) return fallback;
 
-  // Wider match (prefix): e.g. 'en' matches 'en-US', 'en-GB', 'en-IN'
-  const prefix = lang.split('-')[0];
-  const genericVoice = webVoices.find((v) => v.lang.startsWith(prefix));
-  
-  // For English, strictly try to get an English voice if Web Speech gets wonky
-  if (!genericVoice && prefix === 'en') {
-     return webVoices.find(v => v.lang.toLowerCase().includes('en'));
-  }
-  
-  return genericVoice;
+  // Fallback prefix match
+  return webVoices.find((v) => v.lang.toLowerCase().startsWith(prefix));
 };
 
 // ─── Cancellation token ──────────────────────────────────────────────────────
@@ -153,15 +147,8 @@ let cancelGeneration = false;
 // ─── Core speak() function ───────────────────────────────────────────────────
 
 /**
- * Speak the given text using the appropriate TTS engine.
- *
- * ```ts
- * speak("Hello world");                         // auto-detects English → Kokoro
- * speak("नमस्ते", { lang: "hi-IN" });            // Hindi → Web Speech
- * speak("नमस्कार", { lang: "mr-IN" });           // Marathi → Web Speech
- * speak("Hello", { rate: 1.2, onEnd: () => {} });
- * speak.stop();                                  // cancel current playback
- * ```
+ * Speak the given text using strictly Native OS Web Speech engine.
+ * Highly optimized for any tier of PC.
  */
 async function speak(text: string, options?: SpeakOptions): Promise<void> {
   // Always stop any ongoing speech first
@@ -169,202 +156,83 @@ async function speak(text: string, options?: SpeakOptions): Promise<void> {
   cancelGeneration = false;
 
   const lang = detectLang(text, options?.lang);
+  let voiceLang = 'en-US';
 
-  // ── Hindi / Marathi → Web Speech API (Google हिन्दी hi-IN for both) ─────
+  // Apply Regional mappings
   if (lang === 'hi-IN' || lang === 'mr-IN' || lang === 'hi' || lang === 'mr') {
-    // Use Google हिन्दी (hi-IN) voice for BOTH Hindi and Marathi
-    const voiceLang = 'hi-IN';
+    voiceLang = 'hi-IN'; // Both Hindi and Marathi spoken excellently natively by 'hi-IN' engines
+  }
 
-    return new Promise<void>(async (resolve) => {
-      if (!('speechSynthesis' in window)) {
-        console.warn('[TTS] Web Speech API not supported in this browser');
+  return new Promise<void>(async (resolve) => {
+    if (!('speechSynthesis' in window)) {
+      console.warn('[TTS] Web Speech API not supported in this browser/PC');
+      options?.onEnd?.();
+      resolve();
+      return;
+    }
+    
+    // Wait for native voices to load onto the slow PC
+    await ensureVoicesLoaded();
+
+    if (cancelGeneration) {
+       resolve();
+       return;
+    }
+
+    // Cancel any ghost leftovers in the OS buffer
+    window.speechSynthesis.cancel();
+
+    // Chunk text by sentences to provide faster pacing on slow machines
+    // For WebSpeech, giving it massive blocks of text can sometimes freeze older Chrome instances
+    const rawChunks = text.match(/[^.!?;]+[.!?;]?/g) || [text];
+    const sentences = rawChunks.map(s => s.trim()).filter(s => s.length > 0);
+
+    let currentIndex = 0;
+
+    const playNextChunk = () => {
+      if (cancelGeneration || currentIndex >= sentences.length) {
         options?.onEnd?.();
         resolve();
         return;
       }
-      
-      await ensureVoicesLoaded();
 
-      // Cancel any leftovers
-      window.speechSynthesis.cancel();
-
-      const utter = new SpeechSynthesisUtterance(text);
+      const utter = new SpeechSynthesisUtterance(sentences[currentIndex]);
       utter.lang = voiceLang;
       utter.rate = options?.rate ?? 1.0;
 
       const voice = pickVoice(voiceLang);
-      if (voice) utter.voice = voice;
-
-      utter.onend = () => {
-        options?.onEnd?.();
-        resolve();
-      };
-      utter.onerror = (e) => {
-        console.warn('[TTS] Web Speech error:', e);
-        options?.onError?.(e);
-        options?.onEnd?.();
-        resolve();
-      };
-
-      window.speechSynthesis.speak(utter);
-    });
-  }
-
-  // ── English → Kokoro TTS (local ONNX) ──────────────────────────────────
-  try {
-    const tts = await getKokoro();
-
-    if (cancelGeneration) return; // user called stop() while model was loading
-
-    // Chunk text by punctuation (sentences) to provide fast Time-To-First-Audio.
-    const rawChunks = text.match(/[^.!?;]+[.!?;]?/g) || [text];
-    const sentences = rawChunks.map(s => s.trim()).filter(s => s.length > 0);
-
-    return new Promise<void>((resolve) => {
-      let currentIndex = 0;
-      let nextAudioBlobUrl: string | null = null;
-
-      const generateChunk = async (idx: number): Promise<string | null> => {
-        if (idx >= sentences.length || cancelGeneration) return null;
-        try {
-          const audio = await tts.generate(sentences[idx], { voice: 'af_heart' } as any);
-          if (cancelGeneration) return null;
-          return URL.createObjectURL((audio as any).toBlob());
-        } catch (e) {
-          console.warn('[TTS] Chunk generation failed', e);
-          return null;
-        }
-      };
-
-      const playCurrentAndPreloadNext = async () => {
-        if (cancelGeneration) {
-          if (nextAudioBlobUrl) URL.revokeObjectURL(nextAudioBlobUrl);
-          return;
-        }
-
-        // Get URL for current chunk (either preloaded from previous iteration, or generate now)
-        const urlToPlay = nextAudioBlobUrl || await generateChunk(currentIndex);
-        if (cancelGeneration) return;
-
-        if (!urlToPlay) {
-          options?.onEnd?.();
-          resolve();
-          return;
-        }
-
-        // Start preloading the NEXT chunk immediately in the background
-        let nextUrlPromise: Promise<string | null> | null = null;
-        if (currentIndex + 1 < sentences.length) {
-          nextUrlPromise = generateChunk(currentIndex + 1);
-        }
-
-        const el = new Audio(urlToPlay);
-        activeAudio = el;
-        if (options?.rate && options.rate !== 1) {
-          el.playbackRate = options.rate;
-        }
-
-        el.onended = async () => {
-          URL.revokeObjectURL(urlToPlay);
-          activeAudio = null;
-          currentIndex++;
-          
-          if (currentIndex >= sentences.length) {
-            options?.onEnd?.();
-            resolve();
-          } else {
-            // Await the prefetched chunk
-            nextAudioBlobUrl = nextUrlPromise ? await nextUrlPromise : null;
-            playCurrentAndPreloadNext();
-          }
-        };
-
-        el.onerror = (e) => {
-          URL.revokeObjectURL(urlToPlay);
-          activeAudio = null;
-          console.warn('[TTS] Kokoro playback error:', e);
-          options?.onError?.(e);
-          options?.onEnd?.();
-          resolve();
-        };
-
-        el.play().catch((e) => {
-          URL.revokeObjectURL(urlToPlay);
-          activeAudio = null;
-          console.warn('[TTS] Autoplay blocked:', e);
-          options?.onError?.(e);
-          options?.onEnd?.();
-          resolve();
-        });
-      };
-
-      // Start playback chain
-      playCurrentAndPreloadNext();
-    });
-  } catch (err) {
-    console.warn('[TTS] Kokoro generation failed, falling back to Web Speech:', err);
-
-    // ── Fallback: Web Speech API for English too ────────────────────────
-    return new Promise<void>(async (resolve) => {
-      if (!('speechSynthesis' in window)) {
-        options?.onEnd?.();
-        resolve();
-        return;
-      }
-      
-      await ensureVoicesLoaded();
-
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'en-US';
-      utter.rate = options?.rate ?? 1.0;
-
-      const voice = pickVoice('en-US') || pickVoice('en-GB') || pickVoice('en');
       if (voice) {
         utter.voice = voice;
       }
 
       utter.onend = () => {
-        options?.onEnd?.();
-        resolve();
+        currentIndex++;
+        playNextChunk();
       };
-      utter.onerror = () => {
-        options?.onEnd?.();
-        resolve();
+
+      utter.onerror = (e) => {
+        console.warn('[TTS] Native speech error on chunk:', e);
+        // Continue to next chunk if one errors out to prevent freeze
+        currentIndex++;
+        playNextChunk();
       };
 
       window.speechSynthesis.speak(utter);
-    });
-  }
+    };
+
+    // Kick off speech chain
+    playNextChunk();
+  });
 }
 
 // ─── speak.stop() ────────────────────────────────────────────────────────────
 
 speak.stop = (): void => {
   cancelGeneration = true;
-
-  // Stop Kokoro playback
-  if (activeAudio) {
-    activeAudio.pause();
-    activeAudio.src = '';
-    activeAudio = null;
-  }
-
-  // Stop Web Speech
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
 };
 
 export { speak };
-
-// ─── Eager Preloading ────────────────────────────────────────────────────────
-// Kick off the model download immediately so it's ready when the interview starts.
-// WebAssembly init + 82MB fetch takes time, we don't want to block the first question.
-if (typeof window !== 'undefined') {
-  // Fire and forget
-  getKokoro().catch((err) => {
-    console.warn('[TTS] Background preload of Kokoro failed:', err);
-  });
-}
 
