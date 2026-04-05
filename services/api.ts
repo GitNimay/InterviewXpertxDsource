@@ -42,15 +42,15 @@ export const generateOpenAITTS = async (text: string) => {
 };
 const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
-export const generateInterviewQuestions = async (jobTitle: string, jobDescription: string, candidateExp: string, base64Resume: string, mimeType: string, languageCode: string = 'en') => {
+export const generateInterviewQuestions = async (jobTitle: string, jobDescription: string, candidateExp: string, base64Resume: string, mimeType: string, languageCode: string = 'en', numQuestions: number = 5) => {
   const targetLanguage = languageCode === 'mr' ? 'Marathi' : languageCode === 'hi' ? 'Hindi' : 'English';
-  const prompt = `You are an AI interviewer. Your task is to generate 5 diverse interview questions for a candidate applying for the "${jobTitle}" role.
+  const prompt = `You are an AI interviewer. Your task is to generate ${numQuestions} diverse interview questions for a candidate applying for the "${jobTitle}" role.
 The job description is: "${jobDescription}"
 The candidate's stated experience is: ${candidateExp}.
 Review the attached resume image to understand the candidate's background, skills, and experience.
-Generate 5 interview questions that are relevant to the job and the candidate's resume.
+Generate ${numQuestions} interview questions that are relevant to the job and the candidate's resume.
 Instructions:
-1. Provide EXACTLY 5 questions.
+1. Provide EXACTLY ${numQuestions} questions.
 2. Each question must be on a NEW LINE.
 3. DO NOT include numbering (e.g., 1., 2., - ), bullet points (* ), or any introductory/concluding text.
 4. Just provide the plain question text, one per line.
@@ -74,7 +74,7 @@ IMPORTANT: You MUST generate the questions strictly in the **${targetLanguage}**
 
     const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const cleanText = text.replace(/^\s*[\d\.\-\*\+]+\s*/gm, '').replace(/\*\*/g, '').trim();
-    return cleanText.split('\n').map(q => q.trim()).filter(q => q && q.length > 15).slice(0, 5);
+    return cleanText.split('\n').map(q => q.trim()).filter(q => q && q.length > 15).slice(0, numQuestions);
   } catch (error: any) {
     console.error("Gemini Generate Questions Error:", error);
     throw new Error(error.message || "Failed to generate questions");
