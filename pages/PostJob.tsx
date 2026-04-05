@@ -50,7 +50,8 @@ const PostJob: React.FC = () => {
     description: '',
     permission: 'anyone',
     skills: '',
-    category: ''
+    category: '',
+    numQuestions: 5,
   });
   const [skillSearch, setSkillSearch] = useState('');
 
@@ -91,6 +92,7 @@ const PostJob: React.FC = () => {
         description: formData.description,
         interviewPermission: formData.permission,
         skills: formData.skills,
+        numQuestions: formData.numQuestions,
         category: formData.category,
         applyDeadline: Timestamp.fromDate(deadlineDate),
         recruiterUID: user.uid,
@@ -99,7 +101,8 @@ const PostJob: React.FC = () => {
         interviewLink: newInterviewLink,
         accessCode: newAccessCode,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        isMock: false
       });
 
       // Automatically create the tied AI Interview document using the identical ID!
@@ -113,11 +116,13 @@ const PostJob: React.FC = () => {
         education: formData.qualifications,
         deadline: formData.deadline,
         candidateEmails: [],
+        numQuestions: formData.numQuestions,
         interviewLink: newInterviewLink,
         accessCode: newAccessCode,
         recruiterUID: user.uid,
         jobId: jobId,
         createdAt: serverTimestamp(),
+        isMock: false
       });
 
       navigate('/recruiter/jobs');
@@ -211,21 +216,32 @@ const PostJob: React.FC = () => {
             />
           </div>
 
-          <div className="space-y-2 form-field">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Job Category</label>
-            <div className="relative">
-              <select
-                name="category"
-                value={formData.category}
-                onChange={e => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white appearance-none focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
-              >
-                <option value="">Select a Category</option>
-                {JOB_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
-                <i className="fas fa-chevron-down text-xs"></i>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2 form-field">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Job Category</label>
+              <div className="relative">
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={e => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white appearance-none focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
+                >
+                  <option value="">Select a Category</option>
+                  {JOB_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
+                  <i className="fas fa-chevron-down text-xs"></i>
+                </div>
               </div>
+            </div>
+            <div className="space-y-2 form-field">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Number of Questions</label>
+              <input
+                type="number" required min="1" max="15"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
+                value={formData.numQuestions}
+                onChange={e => setFormData({ ...formData, numQuestions: parseInt(e.target.value, 10) || 5 })}
+              />
             </div>
           </div>
 

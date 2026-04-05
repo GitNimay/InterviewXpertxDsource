@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, orderBy, deleteDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, deleteDoc, doc, updateDoc, arrayUnion, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -33,8 +33,15 @@ const RecruiterInterviews: React.FC = () => {
     };
 
     setLoading(true);
+    // NOTE: This query requires a composite index in Firestore.
+    // The error message in the browser console will provide a link to create it.
     const interviewsQuery = query(
       collection(db, 'interviews'),
+      // Filter to show only interviews created by the current recruiter
+      where('recruiterUID', '==', user.uid),
+      // Use '!=' to include interviews where 'isMock' is false OR where the field doesn't exist (for older data).
+      // This correctly excludes documents where 'isMock' is explicitly true.
+      where('isMock', '!=', true),
       orderBy('createdAt', 'desc')
     );
 

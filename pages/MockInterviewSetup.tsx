@@ -18,6 +18,7 @@ const MockInterviewSetup: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'video' | 'assessment'>('video');
   const [assessmentType, setAssessmentType] = useState<'aptitude' | 'coding'>('aptitude');
   const [assessmentTopic, setAssessmentTopic] = useState('');
+  const [videoNumQuestions, setVideoNumQuestions] = useState(5);
   const [numQuestions, setNumQuestions] = useState(5);
   const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Medium');
 
@@ -112,11 +113,11 @@ const MockInterviewSetup: React.FC = () => {
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       const currentBalance = userSnap.data()?.walletBalance || 0;
-      const INTERVIEW_COST = 10;
+      const INTERVIEW_COST = videoNumQuestions * 2;
 
       if (currentBalance < INTERVIEW_COST) {
         messageBox.showConfirm(
-          `Insufficient wallet balance (${currentBalance} pts). A mock interview requires ${INTERVIEW_COST} points. Would you like to add points?`,
+          `Insufficient wallet balance (${currentBalance} pts). This mock interview requires ${INTERVIEW_COST} points. Would you like to add points?`,
           () => navigate('/candidate/payment')
         );
         setLoading(false);
@@ -138,7 +139,8 @@ const MockInterviewSetup: React.FC = () => {
         description: jobDesc,
         companyName: 'Mock Interview',
         isMock: true,
-        recruiterUID: user.uid,
+        numQuestions: videoNumQuestions,
+        recruiterUID: null, // मॉक मुलाखती विशिष्ट रिक्रूटरशी संबंधित नाहीत
         createdAt: serverTimestamp(),
         applyDeadline: Timestamp.fromDate(new Date(Date.now() + 86400000 * 365)),
         interviewPermission: 'anyone',
@@ -148,7 +150,8 @@ const MockInterviewSetup: React.FC = () => {
       await setDoc(doc(db, 'interviews', mockId), {
         title: jobTitle,
         description: jobDesc,
-        recruiterUID: user.uid,
+        numQuestions: videoNumQuestions,
+        recruiterUID: null, // मॉक मुलाखती विशिष्ट रिक्रूटरशी संबंधित नाहीत
         isMock: true,
         createdAt: serverTimestamp(),
         jobId: mockId,
@@ -275,7 +278,7 @@ const MockInterviewSetup: React.FC = () => {
                   Practice for any job role. Paste a job link or describe the role manually to get started.
                 </p>
                 <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-full text-xs font-bold border border-blue-100 dark:border-blue-800">
-                  <i className="fas fa-coins"></i> Cost: 10 Points
+                  <i className="fas fa-coins"></i> Cost: {videoNumQuestions * 2} Points
                 </div>
               </div>
 
@@ -356,6 +359,23 @@ const MockInterviewSetup: React.FC = () => {
                         className="w-full p-4 border border-gray-200 dark:border-white/10 rounded-2xl focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all bg-white dark:bg-[#111] dark:text-white resize-none font-medium leading-relaxed placeholder-gray-400 shadow-sm"
                         value={jobDesc}
                         onChange={(e) => setJobDesc(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 group">
+                    <div className="flex justify-between items-center">
+                      <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">Number of Questions</label>
+                      <span className="px-2 py-1 text-sm font-bold text-primary bg-primary/10 rounded-md">{videoNumQuestions}</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="range"
+                        min="1" max="10"
+                        required
+                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-primary"
+                        value={videoNumQuestions}
+                        onChange={(e) => setVideoNumQuestions(parseInt(e.target.value, 10) || 5)}
                       />
                     </div>
                   </div>

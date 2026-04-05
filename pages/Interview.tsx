@@ -393,7 +393,8 @@ const CandidateInterviewFlow: React.FC = () => {
         userProfile?.experience ? `${userProfile.experience} years` : "0 years",
         base64String,
         resumeMimeType,
-        submittedInfo.language
+        submittedInfo.language,
+        interview!.numQuestions || 5
       );
 
       setInterviewState((prev) => ({

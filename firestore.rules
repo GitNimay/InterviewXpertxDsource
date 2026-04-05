@@ -57,8 +57,11 @@ service cloud.firestore {
                     && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
 
       allow read: if true;
-      allow create: if request.auth != null
-                    && request.resource.data.recruiterUID == request.auth.uid;
+      // Allow recruiters to create jobs, and any authenticated user to create a mock job.
+      allow create: if request.auth != null && (
+                      (request.resource.data.recruiterUID == request.auth.uid) ||
+                      (request.resource.data.isMock == true)
+                    );
       allow update, delete: if request.auth != null
                              && resource.data.recruiterUID == request.auth.uid;
     }
@@ -74,7 +77,11 @@ service cloud.firestore {
         // Recruiter who created the interview can do anything
         allow update, delete: if request.auth != null && resource.data.recruiterUID == request.auth.uid;
         
-        allow create: if request.auth != null;
+        // Allow recruiters to create interviews, and any authenticated user to create a mock interview.
+        allow create: if request.auth != null && (
+                      (request.resource.data.recruiterUID == request.auth.uid) ||
+                      (request.resource.data.isMock == true)
+                    );
 
         // --- Attempts Subcollection Rules ---
         match /attempts/{attemptId} {
@@ -83,6 +90,11 @@ service cloud.firestore {
 
             // Allow anyone to read a report. This makes report links public.
             allow read: if true;
+
+            // Allow the recruiter who owns the job/interview to update the submission status.
+            allow update: if request.auth != null
+                          && get(/databases/$(database)/documents/interviews/$(interviewId)).data.recruiterUID == request.auth.uid
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
         }
     }
 

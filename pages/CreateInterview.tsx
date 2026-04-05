@@ -164,6 +164,7 @@ const CreateInterview: React.FC = () => {
         accessCode,
         recruiterUID: user.uid,
         createdAt: serverTimestamp(),
+        isMock: false,
       });
       // Logic to send email will be added here
       navigate('/recruiter/interviews');
