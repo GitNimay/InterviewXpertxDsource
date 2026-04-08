@@ -234,6 +234,11 @@ const InterviewReport: React.FC = () => {
                         <div className="flex items-center gap-2"><User size={14} /> <strong>{submission.candidateInfo?.name || 'Unknown Candidate'}</strong></div>
                         <div className="flex items-center gap-2"><i className="fas fa-envelope text-xs"></i> {submission.candidateInfo?.email}</div>
                         <div className="flex items-center gap-2"><i className="fas fa-calendar-alt text-xs"></i> {submission.submittedAt?.toDate ? submission.submittedAt.toDate().toLocaleString('en-GB') : 'N/A'}</div>
+                        {submission.candidateResumeURL && !submission.candidateResumeURL.startsWith('data:text/plain') && (
+                            <a href={submission.candidateResumeURL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-500 hover:text-blue-600 transition-colors bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full font-medium">
+                                <FileText size={14} /> View Resume PDF
+                            </a>
+                        )}
                     </div>
                 </div>
                 <div className="flex-shrink-0">

@@ -131,10 +131,17 @@ const InterviewResponses: React.FC = () => {
                         <div className="pb-6 px-6 border-t border-gray-200 dark:border-white/10 animate-fade-in-up">
                           
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
-                            <button onClick={() => { /* Implement resume modal logic if needed */ }} className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg text-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                                <i className="fas fa-file-alt text-2xl text-blue-500 mb-2"></i>
-                                <p className="font-semibold text-sm">View Resume</p>
-                            </button>
+                            {submission.candidateResumeURL && !submission.candidateResumeURL.startsWith('data:text/plain') ? (
+                              <a href={submission.candidateResumeURL} target="_blank" rel="noopener noreferrer" className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg text-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors block">
+                                  <i className="fas fa-file-alt text-2xl text-blue-500 mb-2"></i>
+                                  <p className="font-semibold text-sm">View Resume Options</p>
+                              </a>
+                            ) : (
+                              <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg text-center opacity-50">
+                                  <i className="fas fa-file-alt text-2xl text-gray-500 mb-2"></i>
+                                  <p className="font-semibold text-sm">Resume Unavailable</p>
+                              </div>
+                            )}
                             <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg text-center">
                                 <i className="fas fa-user-tie text-2xl text-green-500 mb-2"></i>
                                 <p className="font-semibold text-sm">Resume Score: {getScoreValue(submission.resumeScore).toFixed(0)}%</p>

@@ -140,7 +140,7 @@ const TicTacToe: React.FC = () => {
 
 // --- Component: Candidate Info Form ---
 const CandidateInfoForm: React.FC<{
-  onSubmit: (info: CandidateInfo, file: File | null, existingResumeUrl?: string) => void;
+  onSubmit: (info: CandidateInfo, file: File | null, existingResumeUrl?: string, cloudinaryUrl?: string) => void;
   errorMsg: string | null;
   user: any;
   userProfile: any;
@@ -149,6 +149,7 @@ const CandidateInfoForm: React.FC<{
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(userProfile?.phone || '');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [cloudinaryUrl, setCloudinaryUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(initialError);
   const [language, setLanguage] = useState('en');
 
@@ -158,18 +159,50 @@ const CandidateInfoForm: React.FC<{
       setErrorMsg(initialError);
   }, [initialError]);
 
+  useEffect(() => {
+    if (!(window as any).cloudinary) {
+      const script = document.createElement('script');
+      script.src = 'https://upload-widget.cloudinary.com/global/all.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
+  const openCloudinaryWidget = () => {
+    const cloudinary = (window as any).cloudinary;
+    if (cloudinary) {
+      cloudinary.createUploadWidget(
+        {
+          cloudName: "dzj2wcui1",
+          uploadPreset: "RESUME-PDF",
+          sources: ['local', 'url'],
+          multiple: false,
+          clientAllowedFormats: ['pdf']
+        },
+        (error: any, result: any) => {
+          if (!error && result && result.event === "success") {
+            setCloudinaryUrl(result.info.secure_url);
+            setResumeFile(null); // Clear any locally selected file just in case
+          }
+        }
+      ).open();
+    } else {
+      setErrorMsg("Cloudinary widget is still loading, please try again in a moment.");
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email) {
       setErrorMsg("Please fill in your name and email.");
       return;
     }
-    if (!resumeFile && !existingResumeUrl && !userProfile) {
+    if (!resumeFile && !existingResumeUrl && !userProfile && !cloudinaryUrl) {
       setErrorMsg("Please upload your resume.");
       return;
     }
     setErrorMsg(null);
-    onSubmit({ name, email, phone, language }, resumeFile, existingResumeUrl);
+    onSubmit({ name, email, phone, language }, resumeFile, existingResumeUrl, cloudinaryUrl || undefined);
   };
 
   return (
@@ -242,8 +275,25 @@ const CandidateInfoForm: React.FC<{
           {!userProfile && (
             <div className="bg-gray-50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Resume Data</label>
-              <input type="file" required accept=".pdf,.png,.jpg,.jpeg" onChange={e => setResumeFile(e.target.files ? e.target.files[0] : null)} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/30 dark:file:text-blue-400" />
-              <p className="text-xs text-gray-400 mt-2">Required for AI generated questions.</p>
+              
+              <div className="flex flex-col items-center gap-3">
+                <button
+                  type="button"
+                  onClick={openCloudinaryWidget}
+                  className="w-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold py-2.5 px-4 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-colors flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-800"
+                >
+                  <i className="fas fa-cloud-upload-alt"></i> 
+                  {cloudinaryUrl ? 'Change Uploaded Resume' : 'Upload Resume PDF via Cloudinary'}
+                </button>
+                
+                {cloudinaryUrl && (
+                  <div className="text-sm text-green-600 dark:text-green-400 font-medium flex items-center justify-center gap-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg w-full border border-green-200 dark:border-green-800/50">
+                    <i className="fas fa-check-circle"></i> Resume Uploaded Successfully
+                  </div>
+                )}
+                
+              </div>
+              <p className="text-xs text-gray-400 mt-3 text-center">Required for AI generated questions.</p>
             </div>
           )}
 
@@ -347,7 +397,7 @@ const CandidateInterviewFlow: React.FC = () => {
   }, [interviewId, searchParams]);
 
   // 2. Handle Candidate Info Submission
-  const handleInfoSubmit = async (submittedInfo: CandidateInfo, submittedFile: File | null, existingResumeUrl?: string) => {
+  const handleInfoSubmit = async (submittedInfo: CandidateInfo, submittedFile: File | null, existingResumeUrl?: string, cloudinaryUrl?: string) => {
     setCandidateInfo(submittedInfo);
 
     setStep('setup');
@@ -356,9 +406,28 @@ const CandidateInterviewFlow: React.FC = () => {
     try {
       let base64String = '';
       let resumeMimeType = '';
-      let resumeUrlToSave = existingResumeUrl || '';
+      let resumeUrlToSave = cloudinaryUrl || existingResumeUrl || '';
 
-      if (submittedFile) {
+      if (cloudinaryUrl) {
+        setLoadingMsg("Fetching uploaded resume for AI...");
+        try {
+          const res = await fetch(cloudinaryUrl);
+          const blob = await res.blob();
+          const getBlobAsBase64 = (b: Blob): Promise<string> => {
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.readAsDataURL(b);
+              reader.onload = () => resolve((reader.result as string).split(',')[1]);
+              reader.onerror = error => reject(error);
+            });
+          };
+          base64String = await getBlobAsBase64(blob);
+          resumeMimeType = blob.type || 'application/pdf';
+        } catch (error) {
+          console.error("Error fetching Cloudinary PDF:", error);
+          throw new Error("Failed to process the uploaded resume.");
+        }
+      } else if (submittedFile) {
         setLoadingMsg("Uploading and parsing your resume...");
         const getFileAsBase64 = (file: File): Promise<{ base64: string, url: string }> => {
           return new Promise((resolve, reject) => {
@@ -479,8 +548,8 @@ const CandidateInterviewFlow: React.FC = () => {
     return (
       <Container>
         <CandidateInfoForm 
-            onSubmit={(info, file, existingResumeUrl) => {
-                handleInfoSubmit(info, file, existingResumeUrl);
+            onSubmit={(info, file, existingResumeUrl, cloudinaryUrl) => {
+                handleInfoSubmit(info, file, existingResumeUrl, cloudinaryUrl);
             }} 
             errorMsg={errorMsg}
             user={user}
