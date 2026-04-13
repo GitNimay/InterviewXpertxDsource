@@ -13,6 +13,7 @@ import { Marquee } from '../components/landing/Marquee';
 import Logo from '../components/Logo';
 import LandingJobs from '../components/LandingJobs';
 import Navbar from '../components/landing/Navbar';
+import ProblemWeSolve from '../components/landing/ProblemWeSolve';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
@@ -1218,6 +1219,7 @@ const Home: React.FC = () => {
         <main>
           <NeuralBackground />
           <Hero />
+          <ProblemWeSolve />
           <WhoItsFor />
           <LandingJobs />
           <Features />
