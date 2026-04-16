@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Mic, CheckCircle, GraduationCap, Briefcase, Shuffle, Brain, FileSearch, MessageSquare, User, Bot, Code, Rocket, Video, Target, Mail, Bug } from 'lucide-react';
 import { BentoGrid, BentoCard } from '../components/landing/BentoGrid';
@@ -224,6 +224,9 @@ const Hero: React.FC = () => {
             </button>
             <Link to="/our-journey" className="px-8 py-4 bg-gradient-to-r from-purple-600/10 to-blue-600/10 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30 rounded-full font-bold text-lg hover:bg-purple-500/20 transition-all hover:shadow-lg hover:shadow-purple-500/20 hover:-translate-y-1 flex items-center justify-center gap-2 backdrop-blur-sm">
               <Sparkles size={20} /> Our Journey
+            </Link>
+            <Link to="/career-hub" className="px-8 py-4 bg-gradient-to-r from-emerald-600/10 to-teal-600/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 rounded-full font-bold text-lg hover:bg-emerald-500/20 transition-all hover:shadow-lg hover:shadow-emerald-500/20 hover:-translate-y-1 flex items-center justify-center gap-2 backdrop-blur-sm">
+              <Target size={20} /> Career Hub
             </Link>
           </div>
 
@@ -492,7 +495,7 @@ const Features: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 auto-rows-[28rem]">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 auto-rows-[26rem] md:auto-rows-[28rem]">
           {/* Feature 1: AI Resume Builder (Animated List) */}
           <div className="group relative flex flex-col justify-between overflow-hidden rounded-3xl p-6 bg-white dark:bg-black/80 backdrop-blur-sm border border-slate-200 dark:border-slate-800 shadow-xl">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />

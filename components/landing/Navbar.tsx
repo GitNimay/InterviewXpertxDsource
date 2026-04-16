@@ -26,6 +26,7 @@ const Navbar: React.FC = () => {
     { name: "Pricing", href: "#pricing" },
     { name: "FAQ", href: "#faq" },
     { name: "Blogs", href: "/blogs", isRoute: true },
+    { name: "Career Hub", href: "/career-hub", isRoute: true },
   ];
 
   const handleScroll = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -49,35 +50,35 @@ const Navbar: React.FC = () => {
   return (
     <>
       <motion.nav
-        className={`fixed top-0 inset-x-0 z-50 flex justify-center pt-4 md:pt-6 px-4 transition-all duration-300`}
+        className={`fixed top-0 inset-x-0 z-50 flex justify-center transition-all duration-500 ${isScrolled ? 'pt-2 px-4 md:px-6' : 'pt-4 md:pt-6 px-4 md:px-6'}`}
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.8 }}
       >
         <div
           className={`
-            relative flex items-center justify-between px-6 py-3 rounded-full transition-all duration-300 border
+            relative flex items-center justify-between rounded-full transition-all duration-500 border
             ${isScrolled
               ? isDark
-                ? 'w-full max-w-5xl bg-black/80 backdrop-blur-md border-white/10 shadow-2xl shadow-indigo-500/10'
-                : 'w-full max-w-5xl bg-white/80 backdrop-blur-md border-slate-200 shadow-xl shadow-slate-200/50'
-              : 'w-full max-w-7xl bg-transparent border-transparent'
+                ? 'w-full max-w-[90%] md:max-w-6xl py-2 px-4 md:px-6 bg-black/80 backdrop-blur-md border-white/10 shadow-2xl shadow-indigo-500/10'
+                : 'w-full max-w-[90%] md:max-w-6xl py-2 px-4 md:px-6 bg-white/80 backdrop-blur-md border-slate-200 shadow-xl shadow-slate-200/50'
+              : 'w-full max-w-7xl py-3 px-4 md:px-6 bg-transparent border-transparent'
             }
           `}
         >
           {/* Logo */}
           <Link to="/" className="flex items-center">
-            <Logo className="w-8 h-8 rounded-lg" isDark={isDark} />
+            <Logo className={`rounded-xl transition-all duration-500 ${isScrolled ? 'w-6 h-6 md:w-7 md:h-7' : 'w-8 h-8'}`} isDark={isDark} />
           </Link>
 
           {/* Desktop Links */}
-          <div className="hidden lg:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
+          <div className="hidden lg:flex items-center gap-4 xl:gap-8 absolute left-1/2 -translate-x-1/2">
             {navLinks.map((link) => (
               link.isRoute ? (
                 <Link
                   key={link.name}
                   to={link.href}
-                  className={`text-sm font-medium transition-colors ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`text-[13px] xl:text-sm font-medium transition-colors whitespace-nowrap ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   {link.name}
                 </Link>
@@ -86,7 +87,7 @@ const Navbar: React.FC = () => {
                   key={link.name}
                   href={isHomePage ? link.href : `/${link.href}`}
                   onClick={(e) => handleScroll(e, link.href)}
-                  className={`text-sm font-medium transition-colors ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                  className={`text-[13px] xl:text-sm font-medium transition-colors whitespace-nowrap ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}
                 >
                   {link.name}
                 </a>

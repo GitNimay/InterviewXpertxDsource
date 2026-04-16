@@ -46,6 +46,7 @@ import AvailableJobs from './pages/AvailableJobs';
 import SubmitReview from './pages/SubmitReview';
 import ReviewsPage from './pages/Reviews';
 import OurJourney from './pages/OurJourney';
+import CareerHub from './pages/CareerHub';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; role?: 'recruiter' | 'candidate' | 'admin' }> = ({ children, role }) => {
   const { user, userProfile, loading } = useAuth();
@@ -128,6 +129,11 @@ const App: React.FC = () => {
             <Route path="our-journey" element={
               <ThemeProvider>
                 <OurJourney />
+              </ThemeProvider>
+            } />
+            <Route path="career-hub" element={
+              <ThemeProvider>
+                <CareerHub />
               </ThemeProvider>
             } />
 
