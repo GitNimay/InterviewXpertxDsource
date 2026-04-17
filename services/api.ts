@@ -8,6 +8,7 @@ const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 const VIDEO_CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`;
 const RESUME_CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 const AUTO_CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+const RAW_CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
 const ASSEMBLYAI_TRANSCRIPT_ENDPOINT = 'https://api.assemblyai.com/v2/transcript';
 
 // --- Gemini API ---
@@ -19,7 +20,7 @@ export const generateOpenAITTS = async (text: string) => {
   if (!OPENAI_API_KEY) {
     throw new Error("OpenAI API key missing. Please add VITE_OPENAI_API_KEY to your .env file to use premium TTS.");
   }
-  
+
   const response = await fetch("https://api.openai.com/v1/audio/speech", {
     method: "POST",
     headers: {
@@ -58,22 +59,42 @@ Instructions:
 IMPORTANT: You MUST generate the questions strictly in the **${targetLanguage}** language. For Hindi and Marathi, you MUST use the native Devanagari script. DO NOT output English letters for Hindi or Marathi questions.`;
 
   try {
-    const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-1.5-pro"];
+    const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro"];
     let response: any = null;
     let lastError: any = null;
 
+    // Gemini only accepts specific mime types for inlineData (images, pdfs, audio, video).
+    // If it's pure text (like our synthesized profiles) or unsupported, we inject it as text instead.
+    const isTextBase = mimeType.startsWith('text/') || mimeType === 'application/json';
+    const isSupportedInline = mimeType.startsWith('image/') || mimeType === 'application/pdf';
+    
+    // Safely coercing mimeType for PDFs if it failed to detect
+    const safeMimeType = (mimeType === 'application/octet-stream' || !mimeType) ? 'application/pdf' : mimeType;
+
+    const parts: any[] = [prompt];
+    
+    if (base64Resume) {
+        if (isTextBase) {
+            try {
+                const decodedText = atob(base64Resume);
+                parts.push(`\nCandidate Resume Data:\n${decodedText}`);
+            } catch (e) {
+                console.warn("Could not decode text resume, sending as is.");
+                parts.push(`\nCandidate Resume Data:\n${base64Resume}`);
+            }
+        } else if (isSupportedInline || safeMimeType === 'application/pdf') {
+            parts.push({
+                inlineData: { mimeType: safeMimeType, data: base64Resume }
+            });
+        }
+    }
+
     for (const model of fallbackModels) {
       try {
+        console.log(`[Generate Questions] Trying model: ${model}`);
         response = await ai.models.generateContent({
           model: model,
-          contents: {
-            parts: [
-              { text: prompt },
-              {
-                inlineData: { mimeType: mimeType, data: base64Resume }
-              }
-            ]
-          }
+          contents: parts
         });
         if (response) break;
       } catch (err: any) {
@@ -147,18 +168,33 @@ Overall Score: [Score]/100`;
     let response: any = null;
     let lastError: any = null;
 
+    const isTextBase = mimeType.startsWith('text/') || mimeType === 'application/json';
+    const isSupportedInline = mimeType.startsWith('image/') || mimeType === 'application/pdf';
+    const safeMimeType = (mimeType === 'application/octet-stream' || !mimeType) ? 'application/pdf' : mimeType;
+
+    const parts: any[] = [feedbackPrompt];
+    
+    if (base64Resume) {
+        if (isTextBase) {
+            try {
+                const decodedText = atob(base64Resume);
+                parts.push(`\nCandidate Resume Data:\n${decodedText}`);
+            } catch (e) {
+                parts.push(`\nCandidate Resume Data:\n${base64Resume}`);
+            }
+        } else if (isSupportedInline || safeMimeType === 'application/pdf') {
+            parts.push({
+                inlineData: { mimeType: safeMimeType, data: base64Resume }
+            });
+        }
+    }
+
     for (const model of fallbackModels) {
       try {
+        console.log(`[Generate Feedback] Trying model: ${model}`);
         response = await ai.models.generateContent({
           model: model,
-          contents: {
-            parts: [
-              { text: feedbackPrompt },
-              {
-                inlineData: { mimeType: mimeType, data: base64Resume }
-              }
-            ]
-          }
+          contents: parts
         });
         if (response) break;
       } catch (err: any) {
@@ -168,7 +204,7 @@ Overall Score: [Score]/100`;
     }
 
     if (!response) throw lastError || new Error("All AI models are unavailable for feedback generation.");
-    
+
     return response.candidates?.[0]?.content?.parts?.[0]?.text || "AI feedback generation failed.";
   } catch (error: any) {
     console.error("Gemini Feedback Error:", error);
@@ -177,9 +213,10 @@ Overall Score: [Score]/100`;
 };
 
 // --- Cloudinary ---
-export const uploadToCloudinary = async (blob: Blob, resourceType: 'video' | 'image' | 'auto' = 'auto') => {
+export const uploadToCloudinary = async (blob: Blob, resourceType: 'video' | 'image' | 'auto' | 'raw' = 'auto') => {
   const isVideo = resourceType === 'video';
-  const uploadUrl = resourceType === 'auto' ? AUTO_CLOUDINARY_UPLOAD_URL : (isVideo ? VIDEO_CLOUDINARY_UPLOAD_URL : RESUME_CLOUDINARY_UPLOAD_URL);
+  const isRaw = resourceType === 'raw';
+  const uploadUrl = resourceType === 'auto' ? AUTO_CLOUDINARY_UPLOAD_URL : (isVideo ? VIDEO_CLOUDINARY_UPLOAD_URL : (isRaw ? RAW_CLOUDINARY_UPLOAD_URL : RESUME_CLOUDINARY_UPLOAD_URL));
   const formData = new FormData();
   formData.append('file', blob);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);

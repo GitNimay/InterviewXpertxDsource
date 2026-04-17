@@ -177,6 +177,8 @@ const CandidateInfoForm: React.FC<{
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(userProfile?.phone || '');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [uploadedResumeUrl, setUploadedResumeUrl] = useState<string | null>(null);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(initialError);
   const { isDark } = useTheme();
   const [language, setLanguage] = useState('en');
@@ -222,8 +224,13 @@ const CandidateInfoForm: React.FC<{
       setErrorMsg("Please provide your contact number.");
       return;
     }
-    if (!resumeFile && !existingResumeUrl && !userProfile) {
+    if (!resumeFile && !uploadedResumeUrl && !existingResumeUrl && !userProfile) {
       setErrorMsg("Please upload your resume.");
+      return;
+    }
+
+    if (isUploadingResume) {
+      setErrorMsg("Please wait until the resume finishes uploading.");
       return;
     }
 
@@ -277,7 +284,7 @@ const CandidateInfoForm: React.FC<{
       resumeUpdated, experienceType, graduationYear, collegeName, degree: selectedDegree, fieldOfStudy: selectedFieldOfStudy, specialization: selectedSpecialization, branchSpecialization: selectedSpecialization, workStatus, currentCompany, pastCompany, leaveDate,
       currentLocation, readyToRelocate, relocateReason, currentSalary, expectedSalary, hasSalaryProof,
       totalExperienceYears, totalExperienceMonths, highlightedSkillsForJob
-    }, resumeFile, existingResumeUrl, undefined);
+    }, resumeFile, existingResumeUrl, uploadedResumeUrl || undefined);
   };
 
   return (
@@ -565,25 +572,45 @@ const CandidateInfoForm: React.FC<{
           {/* Hide Resume Upload entirely if the user is signed in (we use their Profile Box instead) */}
           {!userProfile && (
             <div className="bg-gray-50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-              <label htmlFor="resume-upload-input" className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Resume Data</label>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Resume Data</label>
               <label
                 htmlFor="resume-upload-input"
-                className="w-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold py-2.5 px-4 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-colors flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-800 cursor-pointer"
+                className={`w-full font-bold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 border cursor-pointer ${isUploadingResume ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-600 border-yellow-200' : uploadedResumeUrl ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-800/60'} ${isUploadingResume ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                <i className="fas fa-cloud-upload-alt"></i>
-                <span>{resumeFile ? resumeFile.name : 'Upload Resume PDF'}</span>
+                <i className={isUploadingResume ? "fas fa-spinner fa-spin" : uploadedResumeUrl ? "fas fa-check-circle" : "fas fa-cloud-upload-alt"}></i>
+                <span>{isUploadingResume ? 'Uploading to Cloudinary...' : uploadedResumeUrl ? 'Resume Uploaded Successfully' : resumeFile ? resumeFile.name : 'Browser/Upload Resume PDF'}</span>
               </label>
               <input
                 id="resume-upload-input"
                 type="file"
                 accept=".pdf"
                 className="hidden"
-                onChange={(e) => {
+                disabled={isUploadingResume}
+                onChange={async (e) => {
                   if (e.target.files && e.target.files[0]) {
-                    setResumeFile(e.target.files[0]);
+                    const file = e.target.files[0];
+                    setResumeFile(file);
+                    setIsUploadingResume(true);
+                    try {
+                      const url = await uploadToCloudinary(file, 'auto');
+                      setUploadedResumeUrl(url);
+                    } catch (err) {
+                      setErrorMsg("Failed to immediately upload to Cloudinary. You can still proceed.");
+                    } finally {
+                      setIsUploadingResume(false);
+                    }
                   }
                 }}
               />
+              
+              {uploadedResumeUrl && (
+                  <div className="mt-3 flex items-center justify-center flex-col">
+                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Direct Cloudinary Link:</p>
+                       <a href={uploadedResumeUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline text-center truncate px-2 w-full flex items-center justify-center gap-1">
+                           <i className="fas fa-external-link-alt py-1"></i> View Uploaded Resume
+                       </a>
+                  </div>
+              )}
               <p className="text-xs text-gray-400 mt-3 text-center">Required for AI generated questions.</p>
               </div>
           )}
@@ -737,6 +764,7 @@ const CandidateInterviewFlow: React.FC = () => {
         resumeMimeType = submittedFile.type;
         try {
           const cloudinaryResumeUrl = await uploadToCloudinary(submittedFile, 'auto');
+          console.log("Cloudinary Public Resume URL:", cloudinaryResumeUrl);
           resumeUrlToSave = cloudinaryResumeUrl;
         } catch (e) {
           console.error("Resume cloudinary upload failed:", e);
