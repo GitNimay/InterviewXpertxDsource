@@ -47,6 +47,7 @@ import SubmitReview from './pages/SubmitReview';
 import ReviewsPage from './pages/Reviews';
 import OurJourney from './pages/OurJourney';
 import CareerHub from './pages/CareerHub';
+import StatusPage from './pages/Status';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode; role?: 'recruiter' | 'candidate' | 'admin' }> = ({ children, role }) => {
   const { user, userProfile, loading } = useAuth();
@@ -110,6 +111,7 @@ const App: React.FC = () => {
             <Route path="report-bug" element={<ReportBug />} />
             <Route path="privacy-policy" element={<PrivacyPolicy />} />
             <Route path="terms-of-service" element={<TermsOfService />} />
+            <Route path="status" element={<StatusPage />} />
             <Route path="blog/:id" element={
               <ThemeProvider>
                 <BlogDetail />
