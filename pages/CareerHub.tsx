@@ -14,7 +14,7 @@ interface JobDetail {
   salary: string;
   demand: string;
   locations: string[];
-  icon: JSX.Element;
+  icon: React.ReactNode;
   bg: string;
   border: string;
   description: string;
