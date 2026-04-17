@@ -215,52 +215,52 @@ const StatusPage: React.FC = () => {
         <div className="absolute bottom-0 right-0 w-[600px] h-[300px] bg-purple-500/[0.03] rounded-full blur-3xl" />
       </div>
 
-      <div className="relative max-w-2xl mx-auto px-4 py-12 sm:py-16">
+      <div className="relative max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-16">
         {/* Header */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-8 sm:mb-10">
           <a
             href="#/"
-            className="inline-flex items-center gap-2 text-slate-400 hover:text-white text-sm mb-8 transition-colors"
+            className="inline-flex items-center gap-2 text-slate-400 hover:text-white text-sm mb-6 sm:mb-8 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
             Back to InterviewXpert
           </a>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-2 sm:mb-3">
             System Status
           </h1>
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-400 text-xs sm:text-sm">
             Real-time health monitoring for InterviewXpert services
           </p>
         </div>
 
         {/* Overall status banner */}
-        <div className={`rounded-xl border p-5 mb-8 flex items-center justify-between ${overall.bg}`}>
+        <div className={`rounded-xl border p-4 sm:p-5 mb-6 sm:mb-8 flex items-center justify-between ${overall.bg}`}>
           <div className="flex items-center gap-3">
             {anyChecking ? (
-              <svg className="animate-spin h-5 w-5 text-yellow-400" viewBox="0 0 24 24" fill="none">
+              <svg className="animate-spin h-5 w-5 text-yellow-400 shrink-0" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
               </svg>
             ) : allOperational ? (
-              <svg className="h-5 w-5 text-emerald-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             ) : (
-              <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <svg className="h-5 w-5 text-red-400 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
               </svg>
             )}
-            <span className={`font-semibold text-sm ${overall.color}`}>{overall.label}</span>
+            <span className={`font-semibold text-sm sm:text-base ${overall.color}`}>{overall.label}</span>
           </div>
           <button
             onClick={runChecks}
             disabled={isRefreshing}
-            className="text-slate-400 hover:text-white transition-colors disabled:opacity-50"
+            className="text-slate-400 hover:text-white transition-colors disabled:opacity-50 shrink-0 p-1 -mr-1"
             title="Refresh status"
           >
-            <svg className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <svg className={`h-5 w-5 sm:h-4 sm:w-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
             </svg>
           </button>
@@ -271,20 +271,20 @@ const StatusPage: React.FC = () => {
           {services.map((service) => (
             <div
               key={service.name}
-              className="flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors"
+              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:px-5 sm:py-4 hover:bg-white/[0.02] transition-colors gap-3 sm:gap-0"
             >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-md bg-white/[0.05] border border-white/[0.1] p-1.5 shadow-sm">
+              <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-md sm:rounded-lg bg-white/[0.05] border border-white/[0.1] p-1.5 shadow-sm mt-0.5 sm:mt-0">
                   <img src={service.iconUrl} alt={`${service.name} logo`} className="w-full h-full object-contain drop-shadow-sm" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{service.name}</p>
-                  <p className="text-xs text-slate-500 truncate">{service.description}</p>
+                  <p className="text-sm sm:text-base font-medium text-white">{service.name}</p>
+                  <p className="text-[11px] sm:text-xs text-slate-500 leading-snug sm:truncate max-w-[280px]">{service.description}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+              <div className="flex items-center gap-4 sm:ml-4 sm:flex-shrink-0 self-start sm:self-auto ml-[46px] sm:ml-0">
                 {service.status !== 'checking' && service.responseTime !== undefined && (
-                  <span className="text-[11px] text-slate-500 font-mono tabular-nums hidden sm:inline">
+                  <span className="text-[11px] text-slate-500 font-mono tabular-nums bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/[0.05]">
                     {service.responseTime}ms
                   </span>
                 )}
