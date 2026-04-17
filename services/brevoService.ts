@@ -4,7 +4,7 @@
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY;
 const SENDER_EMAIL = import.meta.env.VITE_BREVO_SENDER_EMAIL;
-const SENDER_NAME = import.meta.env.VITE_BREVO_SENDER_NAME || 'InterviewXpert';
+const SENDER_NAME = import.meta.env.VITE_BREVO_SENDER_NAME || 'Dsource';
 
 /**
  * Derives a human-readable name from an email address.
@@ -13,14 +13,17 @@ const SENDER_NAME = import.meta.env.VITE_BREVO_SENDER_NAME || 'InterviewXpert';
 function deriveNameFromEmail(email: string): string {
   const localPart = email.split('@')[0];
   return localPart
-    .replace(/[._-]/g, ' ')
+    .replace(/[0-9]/g, '') // Strip numbers (e.g. 2004)
+    .replace(/[._-]/g, ' ') // Replace dots, dashes, underscores with space
     .split(' ')
+    .filter(word => word.length > 0) // Remove any empty strings from multiple symbols
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
+    .join(' ')
+    .trim();
 }
 
 /**
- * Generates the professional HTML email template for interview invitations.
+ * Generates a plain and professional HTML email template for interview invitations.
  */
 function getEmailTemplate(candidateName: string, jobTitle: string, interviewLink: string, accessCode: string): string {
   return `
@@ -31,85 +34,35 @@ function getEmailTemplate(candidateName: string, jobTitle: string, interviewLink
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interview Invitation</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f4f6f9;font-family:'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f9;padding:40px 20px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-          
-          <!-- Header -->
-          <tr>
-            <td style="background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a855f7 100%);padding:40px 40px 30px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:700;letter-spacing:-0.5px;">InterviewXpert</h1>
-              <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;font-weight:400;">AI-Powered Interview Platform</p>
-            </td>
-          </tr>
+<body style="margin:0;padding:40px;background-color:#f4f6f9;font-family:Arial,sans-serif;color:#000000;font-size:16px;line-height:1.5;">
+  <div style="max-width:650px;margin:0 auto;background-color:#daf2ef;box-shadow:0 8px 30px rgba(0,0,0,0.12);border-top:6px solid #0082c8;">
+    
+    <!-- Branding Header -->
+    <div style="background-color:#ffffff;padding:25px 40px;text-align:left;border-bottom:1px solid #cfdad8;">
+      <img src="https://res.cloudinary.com/dvzxfbcsd/image/upload/v1776428916/vwjnuvbd0lpwfrcch7kw.png" alt="DSource: Source -> Train -> Hire -> Retain" style="max-height:55px;width:auto;display:block;" />
+    </div>
 
-          <!-- Body -->
-          <tr>
-            <td style="padding:40px;">
-              <h2 style="margin:0 0 8px;color:#1f2937;font-size:22px;font-weight:600;">You're Invited! 🎉</h2>
-              <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
-                Hi <strong style="color:#1f2937;">${candidateName}</strong>,
-              </p>
-              <p style="margin:0 0 24px;color:#4b5563;font-size:15px;line-height:1.7;">
-                You have been selected for an interview for the position of <strong style="color:#6366f1;">${jobTitle}</strong>. Please use the link and access code below to begin your AI-powered interview at your convenience.
-              </p>
+    <!-- Email Body -->
+    <div style="padding:40px;">
+      <p style="margin:0 0 30px;">Subject: Your Interview Confirmation</p>
 
-              <!-- Access Code Box -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-                <tr>
-                  <td style="background-color:#f5f3ff;border:1px solid #e0e7ff;border-radius:12px;padding:20px;text-align:center;">
-                    <p style="margin:0 0 6px;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Your Access Code</p>
-                    <p style="margin:0;color:#4f46e5;font-size:32px;font-weight:700;letter-spacing:4px;font-family:'Courier New',monospace;">${accessCode}</p>
-                  </td>
-                </tr>
-              </table>
+      <p style="margin:0 0 20px;">Dear ${candidateName},</p>
+      
+      <p style="margin:0 0 20px;">We have found your resume suitable for the post ${jobTitle}.<br>If interested please attend the work interview. Please take this email as confirmation of the following details for your upcoming online interview.</p>
+      
+      <p style="margin:0 0 4px;"><strong>Interview Link:</strong> <a href="${interviewLink}" style="color:#0082c8;">${interviewLink}</a></p>
+      <p style="margin:0 0 20px;"><strong>Interview Password:</strong> ${accessCode}</p>
+      
+      <p style="margin:0 0 20px;">Incase of any difficultly call DSource Support: 9762588623 / 8484888632</p>
 
-              <!-- CTA Button -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-                <tr>
-                  <td align="center">
-                    <a href="${interviewLink}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#ffffff;text-decoration:none;padding:16px 48px;border-radius:12px;font-size:16px;font-weight:600;letter-spacing:0.3px;box-shadow:0 4px 14px rgba(99,102,241,0.4);">
-                      Start Interview →
-                    </a>
-                  </td>
-                </tr>
-              </table>
+      <p style="margin:0 0 30px;">In the meantime, we'll look forward to meeting you!</p>
 
-              <!-- Link fallback -->
-              <p style="margin:0 0 8px;color:#9ca3af;font-size:12px;">If the button doesn't work, copy and paste this link into your browser:</p>
-              <p style="margin:0 0 28px;color:#6366f1;font-size:13px;word-break:break-all;">${interviewLink}</p>
+      <p style="margin:0 0 20px;">Best wishes,</p>
 
-              <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 24px;" />
-
-              <!-- Tips -->
-              <p style="margin:0 0 12px;color:#374151;font-size:14px;font-weight:600;">📋 Before You Start:</p>
-              <ul style="margin:0 0 0 16px;padding:0;color:#6b7280;font-size:14px;line-height:2;">
-                <li>Ensure you have a stable internet connection</li>
-                <li>Allow camera and microphone access when prompted</li>
-                <li>Find a quiet, well-lit environment</li>
-                <li>Keep your resume handy for reference</li>
-              </ul>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color:#f9fafb;padding:24px 40px;border-top:1px solid #e5e7eb;">
-              <p style="margin:0 0 4px;color:#6b7280;font-size:13px;text-align:center;">
-                Best of luck! — <strong>The InterviewXpert Team</strong>
-              </p>
-              <p style="margin:0;color:#9ca3af;font-size:11px;text-align:center;">
-                This is an automated message. Please do not reply to this email.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
+      <p style="margin:0 0 4px;font-weight:bold;">Team DSource</p>
+      <p style="margin:0;">Recruiting Manager</p>
+    </div>
+  </div>
 </body>
 </html>`;
 }
@@ -198,7 +151,7 @@ export async function sendInterviewInvitations(
   for (const email of candidateEmails) {
     const candidateName = deriveNameFromEmail(email);
     const htmlContent = getEmailTemplate(candidateName, jobTitle, interviewLink, accessCode);
-    const subject = `Interview Invitation — ${jobTitle} | InterviewXpert`;
+    const subject = `Interview Invitation — ${jobTitle} | Dsource`;
 
     const result = await sendSingleEmail(email, candidateName, subject, htmlContent);
 

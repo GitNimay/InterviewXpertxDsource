@@ -1,3 +1,4 @@
+// @ts-nocheck
 // This is an example of a serverless function (e.g., /api/send-interview-link.ts)
 // It should not be in your public/client-side code.
 
@@ -24,17 +25,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const sendSmtpEmail = new Brevo.SendSmtpEmail();
 
-  sendSmtpEmail.subject = "Your Interview-Xpert Open Interview Link";
+  sendSmtpEmail.subject = "Your Dsource Open Interview Link";
   sendSmtpEmail.htmlContent = `
     <html><body>
       <h1>Hello!</h1>
-      <p>Here is your link to start the interview for Interview-Xpert.</p>
+      <p>Here is your link to start the interview for Dsource.</p>
       <p><strong>Access Code:</strong> ${accessCode}</p>
       <p><a href="${interviewLink}?code=${accessCode}">Click here to open the interview</a></p>
       <p>Good luck!</p>
     </body></html>
   `;
-  sendSmtpEmail.sender = { name: "Interview-Xpert", email: "noreply@yourdomain.com" }; // Use an email address you have verified with Brevo
+  sendSmtpEmail.sender = { name: "Dsource", email: "noreply@yourdomain.com" }; // Use an email address you have verified with Brevo
   sendSmtpEmail.to = [{ email }];
 
   try {
