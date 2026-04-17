@@ -659,115 +659,6 @@ const HowItWorks: React.FC = () => (
   </section>
 );
 
-const LiveDemo: React.FC = () => {
-  const [isSimulating, setIsSimulating] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
-  const startSimulation = async () => {
-    try {
-      // Request permission immediately on user click to satisfy browser security policies
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      streamRef.current = stream;
-
-      setIsSimulating(true);
-
-      // Wait for state update to render video element
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      }, 100);
-    } catch (err: any) {
-      console.error("Camera error", err);
-      let msg = "Could not access camera. Please allow permissions to try the simulation.";
-
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        msg = "Camera permission denied. Please allow access in your browser settings (usually icon in address bar).";
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        msg = "No camera found on this device.";
-      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        msg = "Camera is currently in use by another application.";
-      }
-
-      alert(msg);
-      setIsSimulating(false);
-    }
-  };
-
-  const stopSimulation = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    setIsSimulating(false);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
-  return (
-    <section className="py-16 md:py-24">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-8">See it in Action</h2>
-        <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 bg-black aspect-video flex items-center justify-center max-w-4xl mx-auto">
-          {!isSimulating ? (
-            <div className="text-center bg-white dark:bg-black/80 backdrop-blur-sm w-full h-full flex flex-col items-center justify-center">
-              <i className="fas fa-laptop-code text-6xl text-slate-300 dark:text-slate-700 mb-4"></i>
-              <p className="text-slate-400 dark:text-slate-500 font-medium">Interactive Dashboard Preview</p>
-              <button onClick={startSimulation} className="mt-6 inline-flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition shadow-lg hover:shadow-blue-500/30 hover:-translate-y-1">
-                <i className="fas fa-camera"></i> Try AI Simulation
-              </button>
-            </div>
-          ) : (
-            <div className="relative w-full h-full bg-black">
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform scale-x-[-1] opacity-90"></video>
-
-              {/* Scan Line */}
-              <motion.div
-                initial={{ top: "0%" }}
-                animate={{ top: "100%" }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="absolute left-0 w-full h-1 bg-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.6)] z-10"
-              />
-
-              {/* Analysis Overlay */}
-              <div className="absolute top-4 left-4 sm:top-6 sm:left-6 bg-black/60 backdrop-blur-md text-white p-3 sm:p-4 rounded-xl text-left text-[10px] sm:text-xs font-mono border border-white/10 z-20 w-40 sm:w-48">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
-                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-                  <span className="font-bold text-red-400">LIVE ANALYSIS</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between"><span className="text-slate-400">Eye Contact</span><span className="text-green-400 font-bold">94%</span></div>
-                  <div className="w-full bg-white/10 rounded-full h-1"><div className="bg-green-500 h-1 rounded-full" style={{ width: '94%' }}></div></div>
-                  <div className="flex justify-between mt-2"><span className="text-slate-400">Posture</span><span className="text-blue-400 font-bold">Stable</span></div>
-                  <div className="flex justify-between mt-2"><span className="text-slate-400">Confidence</span><span className="text-yellow-400 font-bold">High</span></div>
-                </div>
-              </div>
-
-              {/* Face Tracking Box */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-64 sm:h-64 border border-blue-500/30 rounded-2xl z-10">
-                <div className="absolute -top-1 -left-1 w-6 h-6 border-t-2 border-l-2 border-blue-500"></div>
-                <div className="absolute -top-1 -right-1 w-6 h-6 border-t-2 border-r-2 border-blue-500"></div>
-                <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-2 border-l-2 border-blue-500"></div>
-                <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-2 border-r-2 border-blue-500"></div>
-              </div>
-
-              <button onClick={stopSimulation} className="absolute bottom-8 left-1/2 -translate-x-1/2 px-6 py-2 bg-red-600/90 hover:bg-red-600 text-white rounded-full text-sm font-bold transition backdrop-blur-sm z-30 flex items-center gap-2">
-                <i className="fas fa-stop-circle"></i> Stop Simulation
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-};
 
 // --- Testimonials Section with Auto-Scrolling Animation ---
 const testimonials = [
@@ -1234,7 +1125,6 @@ const Home: React.FC = () => {
           <LandingJobs />
           <Features />
           <HowItWorks />
-          <LiveDemo />
           <Testimonials />
           <Pricing />
           <FAQ openFaq={openFaq} toggleFaq={toggleFaq} />
