@@ -849,6 +849,23 @@ const CandidateDashboard: React.FC<{ onlyBestMatches?: boolean }> = ({ onlyBestM
                   ))}
                 </div>
               </div>
+
+              {/* Custom Fields Display */}
+              {(selectedJob as any).customFields && (selectedJob as any).customFields.length > 0 && (
+                <div>
+                  <h3 className="text-gray-900 dark:text-white font-bold text-lg mb-3">Additional Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(selectedJob as any).customFields.map((field: any) => (
+                      <div key={field.id} className="bg-gray-50 dark:bg-[#161616] p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                        <div className="text-gray-500 dark:text-gray-400 text-xs uppercase font-bold mb-1">
+                          {field.key}
+                        </div>
+                        <div className="text-gray-900 dark:text-white font-medium">{field.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           </div>

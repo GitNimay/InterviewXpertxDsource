@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, Code, Bot, ArrowRight, Zap, Target, BookOpen, Briefcase, Map, X, Send, User, ChevronRight, Download } from 'lucide-react';
+import { TrendingUp, Code, Bot, ArrowRight, Zap, Target, BookOpen, Briefcase, Map, X, Send, User, ChevronRight, Download, MapPin, DollarSign, Clock } from 'lucide-react';
 import Navbar from '../components/landing/Navbar';
 import { GoogleGenAI } from '@google/genai';
 import { useAnimatedText } from '../hooks/useAnimatedText';
 import mermaid from 'mermaid';
+import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 // --- Types & Data Arrays ---
 
@@ -12,70 +14,24 @@ interface JobDetail {
   title: string;
   growth: string;
   salary: string;
-  demand: string;
-  locations: string[];
   icon: React.ReactNode;
   bg: string;
-  border: string;
-  description: string;
-  requirements: string[];
-  dayToDay: string[];
 }
 
-const trendingJobs: JobDetail[] = [
-  { 
-    title: "AI/ML Engineer", 
-    growth: "+45%", 
-    salary: "₹15 LPA - ₹35 LPA", 
-    demand: "Very High", 
-    locations: ["Bengaluru", "Hyderabad", "Pune"],
-    icon: <Zap className="w-6 h-6 text-yellow-400 group-hover:animate-pulse" />, 
-    bg: "from-yellow-400/20 to-orange-500/10", 
-    border: "border-yellow-500/30",
-    description: "Design and implement machine learning applications and data science pipelines. You'll bridge the gap between data analytics and software engineering.",
-    requirements: ["Python (Advanced)", "PyTorch or TensorFlow", "Strong Statistics/Math background", "Experience with LLMs & RAG architectures"],
-    dayToDay: ["Building and training machine learning models", "Optimizing model inference latency", "Collaborating with data engineers on ETL pipelines", "Reading the latest research papers and applying novel architectures"]
-  },
-  { 
-    title: "Full Stack Developer", 
-    growth: "+25%", 
-    salary: "₹8 LPA - ₹25 LPA", 
-    demand: "High", 
-    locations: ["Bengaluru", "Gurgaon", "Pune"],
-    icon: <Code className="w-6 h-6 text-blue-400 group-hover:scale-110 transition-transform" />, 
-    bg: "from-blue-400/20 to-indigo-500/10", 
-    border: "border-blue-500/30",
-    description: "Handle all aspects of web development, from frontend user interfaces using React to backend servers and databases.",
-    requirements: ["React/Next.js", "Node.js or Python/Django", "PostgreSQL & MongoDB", "REST APIs and GraphQL"],
-    dayToDay: ["Developing interactive UI components", "Designing robust database schemas", "Writing API endpoints", "Ensuring cross-platform optimization and mobile responsiveness"]
-  },
-  { 
-    title: "Cloud Architect", 
-    growth: "+35%", 
-    salary: "₹20 LPA - ₹45 LPA", 
-    demand: "High", 
-    locations: ["Pune", "Bengaluru", "Noida"],
-    icon: <Target className="w-6 h-6 text-green-400 group-hover:rotate-45 transition-transform" />, 
-    bg: "from-green-400/20 to-emerald-500/10", 
-    border: "border-green-500/30",
-    description: "Oversee a company's cloud computing strategy. This includes cloud adoption plans, cloud application design, and cloud management.",
-    requirements: ["AWS, Azure, or GCP Certifications", "Docker & Kubernetes", "Infrastructure as Code (Terraform/CloudFormation)", "Networking & Security Policies"],
-    dayToDay: ["Designing distributed architectures", "Evaluating cloud providers and managing costs", "Securing cloud workloads", "Mentoring DevOps engineering teams"]
-  },
-  { 
-    title: "Product Manager", 
-    growth: "+20%", 
-    salary: "₹18 LPA - ₹40 LPA", 
-    demand: "Stable", 
-    locations: ["Gurgaon", "Bengaluru", "Mumbai"],
-    icon: <Briefcase className="w-6 h-6 text-purple-400 group-hover:-translate-y-1 transition-transform" />, 
-    bg: "from-purple-400/20 to-pink-500/10", 
-    border: "border-purple-500/30",
-    description: "Lead the product vision, strategy, and execution. You are the intersection between business, engineering, and user experience.",
-    requirements: ["Agile/Scrum Methodologies", "Data-driven Decision Making", "UX/UI Principles", "Excellent Communication & Leadership"],
-    dayToDay: ["Writing product requirements documents (PRDs)", "Prioritizing the product backlog", "Analyzing user feedback and metrics", "Coordinating launches with marketing and engineering"]
-  }
-];
+interface Job {
+  id: string;
+  title: string;
+  companyName: string;
+  description: string;
+  qualifications: string;
+  skills: string;
+  category: string;
+  applyDeadline: Timestamp;
+  location?: string;
+  employmentType?: string;
+  salaryRange?: string;
+  customFields?: {key: string, value: string}[];
+}
 
 interface RoadmapDetail {
   title: string;
@@ -459,13 +415,48 @@ const EmbeddedCareerBot: React.FC = () => {
 
 // --- Main Page Component ---
 const CareerHub: React.FC<{ isDarkTheme: boolean }> = ({ isDarkTheme }) => {
-  const [selectedJob, setSelectedJob] = useState<JobDetail | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [selectedRoadmap, setSelectedRoadmap] = useState<RoadmapDetail | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
 
   useEffect(() => {
     window.scrollTo(0, 0);
     document.title = "Career Hub & Roadmaps | InterviewXpert";
+
+    const fetchJobs = async () => {
+        setLoadingJobs(true);
+        try {
+            const now = Timestamp.now();
+            const q = query(
+                collection(db, 'jobs'), 
+                where('applyDeadline', '>', now),
+                where('isMock', '!=', true),
+                orderBy('applyDeadline', 'asc')
+            );
+            const snapshot = await getDocs(q);
+            const fetchedJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
+            setJobs(fetchedJobs);
+        } catch (error) {
+            console.error("Error fetching jobs:", error);
+        } finally {
+            setLoadingJobs(false);
+        }
+    };
+
+    fetchJobs();
   }, []);
+
+  const getJobCardStyle = (jobTitle: string): JobDetail => {
+    const hash = jobTitle.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
+    const styles: JobDetail[] = [
+      { title: '', growth: '', salary: '', icon: <Zap className="w-6 h-6 text-yellow-400" />, bg: "from-yellow-400/20 to-orange-500/10" },
+      { title: '', growth: '', salary: '', icon: <Code className="w-6 h-6 text-blue-400" />, bg: "from-blue-400/20 to-indigo-500/10" },
+      { title: '', growth: '', salary: '', icon: <Target className="w-6 h-6 text-green-400" />, bg: "from-green-400/20 to-emerald-500/10" },
+      { title: '', growth: '', salary: '', icon: <Briefcase className="w-6 h-6 text-purple-400" />, bg: "from-purple-400/20 to-pink-500/10" },
+    ];
+    return styles[Math.abs(hash) % styles.length];
+  };
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-[#050508] text-slate-900 dark:text-white font-sans relative flex flex-col transition-colors duration-500 selection:bg-indigo-500/30">
@@ -517,51 +508,58 @@ const CareerHub: React.FC<{ isDarkTheme: boolean }> = ({ isDarkTheme }) => {
             <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">Market Growth & Hubs</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {trendingJobs.map((job, idx) => (
-              <motion.div 
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1, duration: 0.5 }}
-                onClick={() => setSelectedJob(job)}
-                className={`bg-white dark:bg-[#0B0C10] p-6 rounded-[24px] border border-slate-200 dark:border-white/5 shadow-sm hover:shadow-xl dark:shadow-[0_0_15px_rgba(0,0,0,0.5)] cursor-pointer group transition-all duration-300 relative overflow-hidden`}
-              >
-                <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${job.bg} rounded-full blur-3xl opacity-50 group-hover:opacity-100 transition-opacity`}></div>
-                
-                <div className="relative z-10">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${job.bg} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 transform`}>
-                    {job.icon}
-                  </div>
-                  
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{job.title}</h3>
-                  <div className="text-sm font-semibold text-green-600 dark:text-green-400 mb-6 flex items-center gap-1 bg-green-50 dark:bg-green-500/10 inline-flex px-2 py-1 rounded-md">
-                    <TrendingUp size={14} className="inline" /> Growth: {job.growth}
-                  </div>
-                  
-                  <div className="space-y-3 mb-6">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">Demand</span>
-                      <span className="font-semibold text-green-600 dark:text-green-400">{job.demand}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">Avg. Salary</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">{job.salary}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-slate-500 dark:text-slate-400">Top Hubs</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-300 max-w-[120px] truncate text-right">{job.locations.slice(0, 2).join(', ')}</span>
-                    </div>
-                  </div>
+          {loadingJobs ? (
+            <div className="flex justify-center items-center h-40">
+              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="text-center py-10 bg-white/50 dark:bg-white/5 rounded-2xl border border-slate-200 dark:border-white/10">
+              <p className="text-slate-500">No open positions at the moment. Please check back later!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {jobs.slice(0, 4).map((job, idx) => {
+                const style = getJobCardStyle(job.title);
+                return (
+                  <motion.div 
+                    key={job.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: idx * 0.1, duration: 0.5 }}
+                    onClick={() => setSelectedJob(job)}
+                    className={`bg-white dark:bg-[#0B0C10] p-6 rounded-[24px] border border-slate-200 dark:border-white/5 shadow-sm hover:shadow-xl dark:shadow-[0_0_15px_rgba(0,0,0,0.5)] cursor-pointer group transition-all duration-300 relative overflow-hidden`}
+                  >
+                    <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${style.bg} rounded-full blur-3xl opacity-50 group-hover:opacity-100 transition-opacity`}></div>
+                    
+                    <div className="relative z-10">
+                      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${style.bg} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 transform`}>
+                        {style.icon}
+                      </div>
+                      
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 truncate" title={job.title}>{job.title}</h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 truncate">{job.companyName}</p>
+                      
+                      <div className="space-y-3 mb-6">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-500 dark:text-slate-400">Salary</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">{job.salaryRange || 'Competitive'}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-500 dark:text-slate-400">Location</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300 max-w-[120px] truncate text-right">{job.location || 'Remote'}</span>
+                        </div>
+                      </div>
 
-                  <div className="w-full py-3 rounded-xl border border-slate-200 dark:border-white/10 flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-400 group-hover:bg-slate-50 dark:group-hover:bg-white/5 transition-colors">
-                    View Indian Context <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                      <div className="w-full py-3 rounded-xl border border-slate-200 dark:border-white/10 flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-400 group-hover:bg-slate-50 dark:group-hover:bg-white/5 transition-colors">
+                        View Details <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Technology Roadmaps Section (Elevated UI) */}
@@ -686,184 +684,103 @@ const CareerHub: React.FC<{ isDarkTheme: boolean }> = ({ isDarkTheme }) => {
           {selectedRoadmap && (
               <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                   <motion.div 
-                      className="absolute inset-0 bg-slate-900/40 dark:bg-black/80 backdrop-blur-xl"
+                      className="absolute inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       onClick={() => setSelectedRoadmap(null)}
                   />
                   <motion.div 
-                      className="relative w-full max-w-6xl h-[90vh] md:h-[85vh] overflow-hidden bg-[#fafafa] dark:bg-[#07070a] rounded-[40px] shadow-[0_0_100px_rgba(0,0,0,0.5)] flex flex-col border border-white/50 dark:border-white/10 group"
+                      className="relative w-full max-w-3xl bg-white dark:bg-[#0f0f0f] rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 dark:border-white/10"
                       initial={{ scale: 0.9, opacity: 0, y: 40 }}
                       animate={{ scale: 1, opacity: 1, y: 0, transition: { type: "spring", damping: 25, stiffness: 300 } }}
                       exit={{ scale: 0.95, opacity: 0, y: 20 }}
                   >
-                      {/* Ambient Modal Glows */}
-                      <div className={`absolute -top-[50%] -right-[20%] w-[1000px] h-[1000px] ${selectedRoadmap.glow} rounded-full blur-[150px] pointer-events-none opacity-50`} />
-                      
-                      <div className="flex-shrink-0 px-8 py-8 md:px-12 md:py-10 border-b border-slate-200 dark:border-white/10 relative z-20 flex items-start justify-between bg-white/50 dark:bg-black/50 backdrop-blur-md">
-                          <div>
-                              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-full text-xs font-bold tracking-widest uppercase mb-6 shadow-sm">
-                                 <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span> Track Deployed
+                      <div className="p-6 sm:p-8 relative z-10 border-b border-slate-200 dark:border-white/5 flex items-start justify-between">
+                          <div className="flex gap-4 items-center">
+                              <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${getJobCardStyle(selectedJob.title).bg} flex items-center justify-center text-white shadow-lg`}>
+                                  {getJobCardStyle(selectedJob.title).icon}
                               </div>
-                              <h2 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white mb-4 tracking-tight">{selectedRoadmap.title}</h2>
-                              <p className="text-slate-600 dark:text-slate-400 text-lg max-w-3xl leading-relaxed">{selectedRoadmap.overview}</p>
+                              <div>
+                                  <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-1">{selectedJob.title}</h2>
+                                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">{selectedJob.companyName} • {selectedJob.location || 'Remote'}</p>
+                              </div>
                           </div>
-                          <button onClick={() => setSelectedRoadmap(null)} className="w-12 h-12 flex items-center justify-center bg-white dark:bg-white/10 hover:bg-slate-100 dark:hover:bg-white/20 border border-slate-200 dark:border-white/10 rounded-full transition-colors z-10 shadow-lg">
-                              <X size={24} className="text-slate-900 dark:text-white" />
+                          <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors flex-shrink-0">
+                              <X size={24} className="text-slate-500 dark:text-slate-400" />
                           </button>
                       </div>
 
-                      {/* Stunning Vertical Alternating Timeline */}
-                      <div className="flex-1 overflow-y-auto w-full relative z-10 custom-scrollbar pb-20">
-                          <div className="relative py-12 md:py-16 w-full max-w-4xl mx-auto px-4 md:px-6">
-                             {/* Central Glowing Line */}
-                             <div className="absolute left-6 md:left-1/2 top-0 bottom-0 w-1 md:w-1.5 bg-gradient-to-b from-indigo-500/20 via-purple-500/50 to-transparent transform md:-translate-x-1/2 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.3)]"></div>
-                             
-                             <div className="flex flex-col gap-10 sm:gap-24">
-                                {selectedRoadmap.milestones.map((step, i) => {
-                                   const isEven = i % 2 === 0;
-                                   return (
-                                       <motion.div 
-                                           initial={{ opacity: 0, y: 50 }}
-                                           animate={{ opacity: 1, y: 0 }}
-                                           transition={{ delay: 0.2 + (i * 0.15), type: 'spring', damping: 20 }}
-                                           key={i} 
-                                           className={`relative flex items-center w-full md:justify-between ${isEven ? 'md:flex-row-reverse' : ''}`}
-                                       >
-                                           {/* Node Circle */}
-                                           <div className={`absolute left-6 md:left-1/2 w-8 h-8 md:w-14 md:h-14 bg-white dark:bg-[#0B0C10] border-4 border-slate-200 dark:border-indigo-500/30 rounded-full flex items-center justify-center transform -translate-x-1/2 z-20 shadow-[0_0_30px_rgba(99,102,241,0.4)] group-hover:scale-125 transition-transform duration-500`}>
-                                              <div className={`w-3 h-3 md:w-6 md:h-6 bg-gradient-to-br ${selectedRoadmap.color} rounded-full`}></div>
-                                           </div>
-
-                                           {/* Empty space for the alternating layout */}
-                                           <div className="hidden md:block md:w-5/12"></div>
-
-                                           {/* Content Box */}
-                                           <div className={`w-[calc(100%-3rem)] ml-14 md:w-5/12 md:ml-0 bg-white dark:bg-[#111116] p-6 md:p-8 rounded-2xl md:rounded-3xl border border-slate-200 dark:border-white/5 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 transition-all duration-300 shadow-2xl relative overflow-hidden group`}>
-                                               {/* Giant faint number bg */}
-                                               <span className="text-[120px] font-black absolute -top-10 -right-6 text-slate-100 dark:text-white/[0.02] group-hover:dark:text-indigo-500/[0.05] transition-colors duration-500 pointer-events-none select-none">
-                                                   0{i+1}
-                                               </span>
-                                               
-                                               <div className="relative z-10">
-                                                   <div className="flex items-center gap-3 mb-4">
-                                                       <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${selectedRoadmap.color} text-white text-xs font-bold tracking-wider shadow-md`}>PHASE {i+1}</div>
-                                                   </div>
-                                                   <h4 className="text-2xl font-black text-slate-900 dark:text-white mb-3">{step.title}</h4>
-                                                   <p className="text-slate-600 dark:text-gray-400 text-[15px] leading-relaxed font-medium">{step.desc}</p>
-                                               </div>
-                                           </div>
-                                       </motion.div>
-                                   )
-                                })}
-                             </div>
+                      <div className="p-6 sm:p-8 overflow-y-auto flex-1 relative z-10 custom-scrollbar">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
+                              <div className="bg-slate-50 dark:bg-[#161616] p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                                  <div className="flex items-center gap-2 text-slate-500 dark:text-gray-400 text-xs uppercase font-bold mb-1">
+                                      <DollarSign className="w-3.5 h-3.5" /> Salary
+                                  </div>
+                                  <div className="text-slate-900 dark:text-white font-medium">{selectedJob.salaryRange || 'Not disclosed'}</div>
+                              </div>
+                              <div className="bg-slate-50 dark:bg-[#161616] p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                                  <div className="flex items-center gap-2 text-slate-500 dark:text-gray-400 text-xs uppercase font-bold mb-1">
+                                      <Briefcase className="w-3.5 h-3.5" /> Job Type
+                                  </div>
+                                  <div className="text-slate-900 dark:text-white font-medium">{selectedJob.employmentType || 'Full-time'}</div>
+                              </div>
+                              <div className="bg-slate-50 dark:bg-[#161616] p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                                  <div className="flex items-center gap-2 text-slate-500 dark:text-gray-400 text-xs uppercase font-bold mb-1">
+                                      <Clock className="w-3.5 h-3.5" /> Deadline
+                                  </div>
+                                  <div className="text-slate-900 dark:text-white font-medium">{selectedJob.applyDeadline?.toDate ? selectedJob.applyDeadline.toDate().toLocaleDateString() : 'Open'}</div>
+                              </div>
                           </div>
-                      </div>
 
-                      <div className="flex-shrink-0 bg-slate-100 dark:bg-[#050508] border-t border-slate-200 dark:border-white/10 p-6 md:px-12 flex flex-col sm:flex-row items-center justify-between gap-6 relative z-20 shadow-[0_-20px_40px_rgba(0,0,0,0.2)]">
-                          <div className="flex items-center gap-3">
-                              <Zap size={20} className="text-yellow-500" />
-                              <span className="font-bold text-slate-900 dark:text-white">Required Stack</span>
-                          </div>
-                          <div className="flex flex-wrap gap-3 justify-end">
-                              {selectedRoadmap.tools.map((tool, i) => (
-                                  <span key={i} className="px-4 py-2 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-white rounded-xl font-bold text-sm shadow-sm hover:border-indigo-500 transition-colors">
-                                      {tool}
-                                  </span>
-                              ))}
+                          <div className="space-y-6 text-slate-600 dark:text-gray-300">
+                              <div>
+                                  <h3 className="text-slate-900 dark:text-white font-bold text-lg mb-3">About the Role</h3>
+                                  <p className="leading-relaxed whitespace-pre-wrap text-sm text-slate-500 dark:text-gray-400">
+                                      {selectedJob.description || 'No detailed description provided.'}
+                                  </p>
+                              </div>
+
+                              <div>
+                                  <h3 className="text-slate-900 dark:text-white font-bold text-lg mb-3">Requirements</h3>
+                                  <p className="leading-relaxed whitespace-pre-wrap text-sm text-slate-500 dark:text-gray-400">
+                                      {selectedJob.qualifications || 'Not specified.'}
+                                  </p>
+                              </div>
+
+                              {selectedJob.skills && (
+                                <div>
+                                    <h3 className="text-slate-900 dark:text-white font-bold text-lg mb-3">Skills</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedJob.skills.split(',').map((q, i) => (
+                                            <span key={i} className="px-3 py-1.5 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-gray-300 rounded-lg text-sm border border-slate-200 dark:border-white/5">
+                                                {q.trim()}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                              )}
+
+                              {selectedJob.customFields && selectedJob.customFields.length > 0 && (
+                                  <div>
+                                      <h3 className="text-slate-900 dark:text-white font-bold text-lg mb-3">Additional Information</h3>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          {selectedJob.customFields.map((field: any) => (
+                                              <div key={field.id || field.key} className="bg-slate-50 dark:bg-[#161616] p-4 rounded-xl border border-slate-100 dark:border-white/5">
+                                                  <div className="text-slate-500 dark:text-gray-400 text-xs uppercase font-bold mb-1">
+                                                      {field.key}
+                                                  </div>
+                                                  <div className="text-slate-900 dark:text-white font-medium">{field.value}</div>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              )}
                           </div>
                       </div>
                   </motion.div>
               </div>
           )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {selectedJob && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              className="absolute inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedJob(null)}
-            />
-            <motion.div 
-              className="relative w-full max-w-4xl bg-white dark:bg-[#0a0a0f] rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200 dark:border-white/10"
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            >
-              <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${selectedJob.bg} rounded-full blur-3xl opacity-30`}></div>
-              
-              <div className="p-8 relative z-10 border-b border-slate-200 dark:border-white/5 flex items-start justify-between">
-                <div className="flex gap-4 items-center">
-                  <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${selectedJob.bg} flex items-center justify-center text-white shadow-lg`}>
-                    {React.cloneElement(selectedJob.icon as React.ReactElement, { className: 'w-8 h-8 text-white group-hover:animate-none' })}
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2">{selectedJob.title}</h2>
-                    <p className="text-slate-500 dark:text-slate-400 max-w-xl text-sm leading-relaxed">{selectedJob.description}</p>
-                  </div>
-                </div>
-                <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full transition-colors flex-shrink-0">
-                  <X size={24} className="text-slate-500 dark:text-slate-400" />
-                </button>
-              </div>
-
-              <div className="p-8 overflow-y-auto flex-1 relative z-10">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                  <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm">
-                    <div className="text-sm text-slate-500 mb-1">Growth</div>
-                    <div className="font-bold text-green-600 dark:text-green-400 text-lg">{selectedJob.growth}</div>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm">
-                    <div className="text-sm text-slate-500 mb-1">Avg. Salary</div>
-                    <div className="font-bold text-slate-900 dark:text-white text-lg">{selectedJob.salary}</div>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm">
-                    <div className="text-sm text-slate-500 mb-1">Demand</div>
-                    <div className="font-bold text-indigo-600 dark:text-indigo-400 text-lg">{selectedJob.demand}</div>
-                  </div>
-                  <div className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl border border-slate-100 dark:border-white/5 shadow-sm hidden md:block">
-                    <div className="text-sm text-slate-500 mb-1">Top Tech Hubs</div>
-                    <div className="font-bold text-slate-900 dark:text-white text-[15px] max-w-[150px] truncate">{selectedJob.locations.join(', ')}</div>
-                  </div>
-                </div>
-
-                <div className="flex flex-col md:flex-row gap-8">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-4 text-slate-900 dark:text-white font-bold text-lg">
-                      <BookOpen className="text-indigo-500" size={20} /> Requirements
-                    </div>
-                    <ul className="space-y-3">
-                      {selectedJob.requirements.map((req, i) => (
-                        <li key={i} className="flex gap-3 text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed">
-                           <div className="mt-1.5 min-w-1.5 h-1.5 rounded-full bg-indigo-500/50"></div>
-                           {req}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-4 text-slate-900 dark:text-white font-bold text-lg">
-                      <Zap className="text-amber-500" size={20} /> Day to Day
-                    </div>
-                    <ul className="space-y-3">
-                      {selectedJob.dayToDay.map((item, i) => (
-                        <li key={i} className="flex gap-3 text-slate-600 dark:text-slate-300 text-[15px] leading-relaxed">
-                           <div className="mt-1.5 min-w-1.5 h-1.5 rounded-full bg-amber-500/50"></div>
-                           {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
       </AnimatePresence>
 
        <style>{`

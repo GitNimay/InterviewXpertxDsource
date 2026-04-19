@@ -4,7 +4,12 @@ import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { SKILL_OPTIONS, JOB_CATEGORIES } from './Profile';
+import * as pdfjsLib from 'pdfjs-dist';
+import { GoogleGenAI } from '@google/genai';
 import gsap from 'gsap';
+
+// Setup PDF.js worker to enable PDF parsing
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
 const PostJob: React.FC = () => {
   const { user, userProfile } = useAuth();
@@ -41,6 +46,11 @@ const PostJob: React.FC = () => {
     return () => ctx.revert();
   }, []);
 
+  const [parsingJd, setParsingJd] = useState(false);
+  interface CustomField { id: number; key: string; value: string; }
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [tempCustomField, setTempCustomField] = useState({ key: '', value: '' });
+
   const [formData, setFormData] = useState({
 
     title: '',
@@ -69,6 +79,77 @@ const PostJob: React.FC = () => {
     setFormData({ ...formData, skills: newSkills.join(', ') });
   };
 
+  const handleAddCustomField = () => {
+    if (tempCustomField.key.trim() && tempCustomField.value.trim()) {
+      setCustomFields([...customFields, { ...tempCustomField, id: Date.now() }]);
+      setTempCustomField({ key: '', value: '' });
+    }
+  };
+
+  const handleRemoveCustomField = (id: number) => {
+    setCustomFields(customFields.filter(field => field.id !== id));
+  };
+
+  const handleJDUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setParsingJd(true);
+    let text = '';
+    try {
+      if (file.type === 'application/pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          text += textContent.items.map((item: any) => item.str).join(' ');
+        }
+      } else if (file.type === 'text/plain') {
+        text = await file.text();
+      } else {
+        alert('Unsupported file type. Please upload a PDF or TXT file.');
+        setParsingJd(false);
+        return;
+      }
+
+      if (!text.trim()) {
+        alert('Could not extract text from the document.');
+        setParsingJd(false);
+        return;
+      }
+
+      const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+      const prompt = `You are an expert HR assistant. Parse the following job description text and extract the fields into a raw JSON object. Schema: {"title": "string", "companyName": "string", "description": "string", "category": "string", "skills": "string", "qualifications": "string"}. Text: --- ${text} ---`;
+
+      const response = await genAI.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [{ parts: [{ text: prompt }] }],
+        config: { responseMimeType: "application/json" }
+      });
+
+      const aiResponseText = (response as any).response.text();
+      const parsedData = JSON.parse(aiResponseText);
+
+      setFormData(prev => ({
+        ...prev,
+        title: parsedData.title || prev.title,
+        companyName: parsedData.companyName || prev.companyName,
+        description: parsedData.description || prev.description,
+        category: parsedData.category || prev.category,
+        skills: parsedData.skills || prev.skills,
+        qualifications: parsedData.qualifications || prev.qualifications,
+      }));
+      alert('✅ Job description parsed and form autofilled!');
+    } catch (error) {
+      console.error('Error parsing JD:', error);
+      alert('❌ Failed to parse job description. Please fill the form manually.');
+    } finally {
+      setParsingJd(false);
+      e.target.value = '';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -93,6 +174,7 @@ const PostJob: React.FC = () => {
         interviewPermission: formData.permission,
         skills: formData.skills,
         numQuestions: formData.numQuestions,
+        customFields,
         category: formData.category,
         applyDeadline: Timestamp.fromDate(deadlineDate),
         recruiterUID: user.uid,
@@ -116,6 +198,7 @@ const PostJob: React.FC = () => {
         education: formData.qualifications,
         deadline: formData.deadline,
         candidateEmails: [],
+        customFields,
         numQuestions: formData.numQuestions,
         interviewLink: newInterviewLink,
         accessCode: newAccessCode,
@@ -142,6 +225,28 @@ const PostJob: React.FC = () => {
       </div>
 
       <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/5 p-8 shadow-xl dark:shadow-none post-job-form">
+        <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl border border-indigo-200 dark:border-indigo-800/50 mb-6 form-field">
+            <h4 className="font-bold text-indigo-800 dark:text-indigo-300 mb-2 flex items-center gap-2">
+                <i className="fas fa-magic"></i> AI Autofill
+            </h4>
+            <p className="text-sm text-indigo-600 dark:text-indigo-400 mb-4">
+                Save time by uploading a Job Description (PDF/TXT). The AI will automatically fill out the form for you.
+            </p>
+            <label htmlFor="jd-upload" className={`w-full flex items-center justify-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border-2 border-dashed border-indigo-300 dark:border-indigo-700 rounded-xl cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-900/30 transition-colors ${parsingJd ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                {parsingJd ? (
+                    <>
+                        <i className="fa-solid fa-circle-notch fa-spin text-xs"></i>
+                        Parsing JD...
+                    </>
+                ) : (
+                    <>
+                        <i className="fa-solid fa-file-upload"></i>
+                        Upload Job Description
+                    </>
+                )}
+            </label>
+            <input id="jd-upload" type="file" accept=".pdf,.txt" className="hidden" onChange={handleJDUpload} disabled={parsingJd} />
+        </div>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2 form-field">
@@ -307,6 +412,50 @@ const PostJob: React.FC = () => {
                 })}
               </div>
             </div>
+          </div>
+
+          <div className="space-y-4 form-field p-6 bg-gray-50/50 dark:bg-gray-800/20 border border-gray-100 dark:border-white/10 rounded-2xl">
+              <div>
+                  <label className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                      <i className="fa-solid fa-plus-circle text-gray-500"></i>
+                      Custom Fields (Optional)
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Add any other relevant information for the job.</p>
+              </div>
+
+              <div className="flex gap-2">
+                  <input
+                      type="text"
+                      className="flex-1 px-4 py-3 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-sm"
+                      placeholder="Field Name (e.g., Salary Range)"
+                      value={tempCustomField.key}
+                      onChange={e => setTempCustomField({ ...tempCustomField, key: e.target.value })}
+                  />
+                  <input
+                      type="text"
+                      className="flex-1 px-4 py-3 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-sm"
+                      placeholder="Field Value (e.g., $80k - $120k)"
+                      value={tempCustomField.value}
+                      onChange={e => setTempCustomField({ ...tempCustomField, value: e.target.value })}
+                  />
+                  <button type="button" onClick={handleAddCustomField} className="px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-colors font-medium text-sm">Add</button>
+              </div>
+
+              {customFields.length > 0 && (
+                  <div className="space-y-2 mt-4 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                      {customFields.map((field) => (
+                          <div key={field.id} className="flex items-center justify-between p-3 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl animate-in fade-in">
+                              <div className="flex gap-2 text-sm">
+                                  <strong className="text-gray-800 dark:text-gray-200">{field.key}:</strong>
+                                  <span className="text-gray-600 dark:text-gray-400">{field.value}</span>
+                              </div>
+                              <button type="button" onClick={() => handleRemoveCustomField(field.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                                  <i className="fa-solid fa-trash-can text-xs"></i>
+                              </button>
+                          </div>
+                      ))}
+                  </div>
+              )}
           </div>
 
           <div className="pt-4 form-field">
