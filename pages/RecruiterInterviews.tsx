@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, orderBy, deleteDoc, doc, updateDoc, arrayUnion, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, deleteDoc, doc, updateDoc, arrayUnion, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -22,6 +22,8 @@ const RecruiterInterviews: React.FC = () => {
   const [editedData, setEditedData] = useState<Partial<Interview>>({});
   const [newEmail, setNewEmail] = useState('');
   const [newEmails, setNewEmails] = useState<string[]>([]);
+  const [parsedCandidates, setParsedCandidates] = useState<{email: string, phone: string}[]>([]);
+  const [submissionsMap, setSubmissionsMap] = useState<Record<string, any[]>>({});
   const [parsingResumes, setParsingResumes] = useState(false);
   const [sendingEmails, setSendingEmails] = useState(false);
   const messageBox = useMessageBox();
@@ -45,9 +47,21 @@ const RecruiterInterviews: React.FC = () => {
       orderBy('createdAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(interviewsQuery, (querySnapshot) => {
+    const unsubscribe = onSnapshot(interviewsQuery, async (querySnapshot) => {
       const interviewsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Interview));
       setInterviews(interviewsData);
+      
+      const newSubmissionsMap: Record<string, any[]> = {};
+      for (const interview of interviewsData) {
+         try {
+             const qs = await getDocs(collection(db, 'interviews', interview.id, 'attempts'));
+             newSubmissionsMap[interview.id] = qs.docs.map(d => d.data());
+         } catch (e) {
+             console.error("Error fetching submissions for", interview.id, e);
+             newSubmissionsMap[interview.id] = [];
+         }
+      }
+      setSubmissionsMap(newSubmissionsMap);
       setLoading(false);
     }, (err) => {
         console.error("Error fetching interviews:", err);
@@ -116,7 +130,7 @@ const RecruiterInterviews: React.FC = () => {
     if (!files || files.length === 0) return;
 
     setParsingResumes(true);
-    const newEmailsFound: string[] = [];
+    const newCandidatesFound: {email: string, phone: string}[] = [];
     let filesProcessed = 0;
     let filesWithErrors = 0;
 
@@ -137,26 +151,30 @@ const RecruiterInterviews: React.FC = () => {
           continue; // Skip unsupported file types
         }
 
-        const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi;
-        const foundEmails = text.match(emailRegex);
+        const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i);
+        const phoneMatch = text.match(/(?:\+?\d{1,4}[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}/);
 
-        if (foundEmails) {
-          foundEmails.forEach(email => {
-            const lowerEmail = email.toLowerCase();
-            if (!(selectedInterview?.candidateEmails || []).includes(lowerEmail) && !newEmails.includes(lowerEmail) && !newEmailsFound.includes(lowerEmail)) {
-              newEmailsFound.push(lowerEmail);
+        if (emailMatch) {
+            const lowerEmail = emailMatch[1].toLowerCase();
+            const phone = phoneMatch ? phoneMatch[0] : 'N/A';
+            
+            if (!(selectedInterview?.candidateEmails || []).includes(lowerEmail) && !newEmails.includes(lowerEmail) && !newCandidatesFound.some(c => c.email === lowerEmail)) {
+                newCandidatesFound.push({ email: lowerEmail, phone });
             }
-          });
         }
         filesProcessed++;
       } catch (error) {
         console.error(`Error parsing ${file.name}:`, error);
         filesWithErrors++;
-          }
+      }
     }
 
-    if (newEmailsFound.length > 0) setNewEmails(prev => [...prev, ...newEmailsFound]);
-    messageBox.showInfo(`Processed ${filesProcessed} file(s). Found ${newEmailsFound.length} new email(s). ${filesWithErrors > 0 ? `Failed to parse ${filesWithErrors} file(s).` : ''}`);
+    if (newCandidatesFound.length > 0) {
+        setNewEmails(prev => [...prev, ...newCandidatesFound.map(c => c.email)]);
+        setParsedCandidates(prev => [...prev, ...newCandidatesFound]);
+    }
+    
+    messageBox.showInfo(`Processed ${filesProcessed} file(s). Found ${newCandidatesFound.length} new candidate(s). ${filesWithErrors > 0 ? `Failed to parse ${filesWithErrors} file(s).` : ''}`);
     setParsingResumes(false);
     e.target.value = ''; // Reset file input
   };
@@ -207,7 +225,10 @@ const RecruiterInterviews: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">My Interviews</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">Manage all your scheduled interviews.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link to="/recruiter/invites" className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 font-semibold rounded-full shadow-sm transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm">
+            <i className="fas fa-address-book text-blue-500"></i> <span>Candidate Hub</span>
+          </Link>
           <Link to="/recruiter/interview/create" className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white dark:text-black font-semibold rounded-full shadow-lg shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm">
             <i className="fas fa-plus"></i> <span>Create New Interview</span>
           </Link>
@@ -251,12 +272,51 @@ const RecruiterInterviews: React.FC = () => {
                             </div>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{interview.description}</p>
-                        <div>
-                            <h4 className="text-sm font-semibold mb-2 text-gray-900 dark:text-white">Candidates:</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {(interview.candidateEmails || []).map(email => (
-                                    <span key={email} className="bg-gray-200 dark:bg-gray-700 text-xs rounded-full px-2 py-1">{email}</span>
-                                ))}
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
+                            <h4 className="text-sm font-semibold mb-3 text-gray-900 dark:text-white flex items-center justify-between">
+                                Candidates
+                                <span className={submissionsMap[interview.id]?.length > 0 ? "text-green-600 bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded-full text-xs" : "text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-xs"}>
+                                    {submissionsMap[interview.id]?.length || 0} Responses
+                                </span>
+                            </h4>
+                            <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto pr-1">
+                                {(() => {
+                                    const explicitEmails = (interview.candidateEmails || []).map(e => e.toLowerCase());
+                                    const submissions = submissionsMap[interview.id] || [];
+                                    const unifiedList: {email: string, hasSubmitted: boolean}[] = [];
+                                    
+                                    // 1. Add all actual submissions (invited or uninvited)
+                                    submissions.forEach(sub => {
+                                        unifiedList.push({ email: sub.candidateInfo?.email || 'N/A', hasSubmitted: true });
+                                    });
+
+                                    // 2. Add explicitly invited members who haven't submitted yet
+                                    explicitEmails.forEach(email => {
+                                        const hasSubmitted = submissions.some(sub => (sub.candidateInfo?.email || '').toLowerCase() === email);
+                                        if (!hasSubmitted && !unifiedList.some(u => u.email.toLowerCase() === email)) {
+                                            unifiedList.push({ email, hasSubmitted: false });
+                                        }
+                                    });
+
+                                    if (unifiedList.length === 0) {
+                                        return <p className="text-xs text-gray-500 italic block">No candidates invited or responses received yet.</p>;
+                                    }
+
+                                    return unifiedList.map((cand, idx) => (
+                                        <div key={idx} className="flex justify-between items-center bg-gray-50 dark:bg-[#1a1a1a] text-xs rounded-lg px-3 py-2 border border-gray-100 dark:border-white/5">
+                                            <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[180px]" title={cand.email}>{cand.email}</span>
+                                            {cand.hasSubmitted ? (
+                                                <span className="text-green-600 dark:text-green-400 font-semibold flex items-center gap-1.5 shrink-0">
+                                                    <i className="fas fa-check-circle"></i> Submitted
+                                                </span>
+                                            ) : (
+                                                <span className="text-yellow-600 dark:text-yellow-500 font-medium flex items-center gap-1.5 shrink-0">
+                                                    <i className="fas fa-clock"></i> Pending
+                                                </span>
+                                            )}
+                                        </div>
+                                    ));
+                                })()}
                             </div>
                         </div>
                     </div>
@@ -330,15 +390,29 @@ const RecruiterInterviews: React.FC = () => {
                         </div>
                     </div>
                     <div>
-                        <h4 className="font-semibold mb-2">New Candidates to Invite:</h4>
-                        <div className="flex flex-wrap gap-2">
-                            {newEmails.map(email => (
-                                <div key={email} className="flex items-center gap-2 bg-gray-200 dark:bg-gray-600 rounded-full px-3 py-1 text-sm">
-                                    <span>{email}</span>
-                                    <button onClick={() => handleRemoveNewEmail(email)} className="text-red-500 hover:text-red-700 font-bold">&times;</button>
-                                </div>
-                            ))}
-                        </div>
+                        <h4 className="font-semibold mb-2 text-sm">New Candidates to Invite:</h4>
+                        {newEmails.length === 0 ? (
+                             <p className="text-xs text-gray-500 italic">No candidates added yet. Upload resumes or add manually.</p>
+                        ) : (
+                            <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto">
+                                {newEmails.map(email => {
+                                    const parsedData = parsedCandidates.find(c => c.email === email);
+                                    return (
+                                        <div key={email} className="flex items-center justify-between text-sm bg-gray-200 dark:bg-gray-700 border border-transparent dark:border-gray-600 rounded-lg px-3 py-2">
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">{email}</span>
+                                                {parsedData?.phone && parsedData.phone !== 'N/A' && (
+                                                    <span className="text-xs text-blue-600 dark:text-blue-400 font-mono"><i className="fas fa-phone-alt mr-1"></i>{parsedData.phone}</span>
+                                                )}
+                                            </div>
+                                            <button onClick={() => handleRemoveNewEmail(email)} className="text-gray-400 hover:text-red-500 transition-colors p-1" title="Remove Candidate">
+                                                <i className="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
