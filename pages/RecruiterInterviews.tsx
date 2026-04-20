@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { collection, query, onSnapshot, orderBy, deleteDoc, doc, updateDoc, arrayUnion, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Interview } from '../types';
 import * as pdfjsLib from 'pdfjs-dist';
 import { useMessageBox } from '../components/MessageBox';
 import { createPortal } from 'react-dom';
 import { sendInterviewInvitations } from '../services/brevoService';
+import EditJobModal from './EditJob';
 
 // Setup PDF.js worker to enable PDF parsing
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -16,10 +17,9 @@ const RecruiterInterviews: React.FC = () => {
   const { user } = useAuth();
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
-  const [editedData, setEditedData] = useState<Partial<Interview>>({});
   const [newEmail, setNewEmail] = useState('');
   const [newEmails, setNewEmails] = useState<string[]>([]);
   const [parsedCandidates, setParsedCandidates] = useState<{email: string, phone: string}[]>([]);
@@ -27,6 +27,7 @@ const RecruiterInterviews: React.FC = () => {
   const [parsingResumes, setParsingResumes] = useState(false);
   const [sendingEmails, setSendingEmails] = useState(false);
   const messageBox = useMessageBox();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) {
@@ -81,48 +82,13 @@ const RecruiterInterviews: React.FC = () => {
     });
   };
 
-  const openEditModal = (interview: Interview) => {
-    setSelectedInterview(interview);
-    setEditedData(interview);
-    setIsEditModalOpen(true);
-  };
-
   const openInviteModal = (interview: Interview) => {
     setSelectedInterview(interview);
     setIsInviteModalOpen(true);
   };
 
-  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setEditedData({ ...editedData, [e.target.name]: e.target.value });
-  };
-
-  const handleAddEmail = () => {
-    if (newEmail) {
-        const currentEmails = editedData.candidateEmails || [];
-        setEditedData({ ...editedData, candidateEmails: [...currentEmails, newEmail] });
-        setNewEmail('');
-    }
-  };
-
-  const handleRemoveEmail = (email: string) => {
-      const currentEmails = editedData.candidateEmails || [];
-      setEditedData({ ...editedData, candidateEmails: currentEmails.filter(e => e !== email) });
-  };
-
   const handleRemoveNewEmail = (emailToRemove: string) => {
       setNewEmails(newEmails.filter(email => email !== emailToRemove));
-  };
-
-  const handleUpdateInterview = async () => {
-      if (!selectedInterview) return;
-      try {
-          await updateDoc(doc(db, 'interviews', selectedInterview.id), editedData);
-          messageBox.showSuccess('Interview updated successfully!');
-          setIsEditModalOpen(false);
-          setSelectedInterview(null);
-      } catch (error) {
-          messageBox.showError('Failed to update interview.');
-      }
   };
 
   const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -263,7 +229,7 @@ const RecruiterInterviews: React.FC = () => {
                                 <Link to={`/interview/${interview.id}`} target="_blank" className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Open Interview">
                                     <i className="fas fa-external-link-alt"></i>
                                 </Link>
-                                <button onClick={() => openEditModal(interview)} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit">
+                                <button onClick={() => setEditingJobId(interview.id)} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit">
                                     <i className="fas fa-pencil-alt"></i>
                                 </button>
                                 <button onClick={() => handleDelete(interview.id)} className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" title="Delete">
@@ -326,38 +292,6 @@ const RecruiterInterviews: React.FC = () => {
                 </div>
             ))}
         </div>
-    )}
-
-    {isEditModalOpen && selectedInterview && createPortal(
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col text-gray-900 dark:text-white">
-                <h3 className="font-bold text-lg p-4 border-b border-gray-200 dark:border-gray-700">Edit Interview</h3>
-                <div className="p-4 space-y-4 overflow-y-auto">
-                    <input name="title" value={editedData.title || ''} onChange={handleEditChange} placeholder="Interview Title" className="w-full p-2 border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600" />
-                    <textarea name="description" value={editedData.description || ''} onChange={handleEditChange} placeholder="Description" className="w-full p-2 border rounded min-h-[100px] bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600" />
-                    <div>
-                        <h4 className="font-semibold mb-2">Candidate Emails</h4>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                            {(editedData.candidateEmails || []).map(email => (
-                                <div key={email} className="flex items-center gap-2 bg-gray-200 dark:bg-gray-700 rounded-full px-3 py-1 text-sm">
-                                    {email}
-                                    <button onClick={() => handleRemoveEmail(email)} className="text-red-500 hover:text-red-700">&times;</button>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="flex gap-2">
-                            <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Add new email" className="w-full p-2 border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600" />
-                            <button onClick={handleAddEmail} className="bg-blue-500 text-white px-4 py-2 rounded">Add</button>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700">
-                    <button onClick={() => setIsEditModalOpen(false)} className="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded">Cancel</button>
-                    <button onClick={handleUpdateInterview} className="bg-green-500 text-white px-4 py-2 rounded">Save</button>
-                </div>
-            </div>
-        </div>,
-        document.body
     )}
 
     {isInviteModalOpen && selectedInterview && createPortal(
@@ -434,6 +368,8 @@ const RecruiterInterviews: React.FC = () => {
         </div>,
         document.body
     )}
+
+    {editingJobId && <EditJobModal jobId={editingJobId} onClose={() => setEditingJobId(null)} />}
     </div>
     );
 };

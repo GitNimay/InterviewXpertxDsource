@@ -62,8 +62,19 @@ const PostJob: React.FC = () => {
     skills: '',
     category: '',
     numQuestions: 5,
+    difficulty: 'Medium',
+    employmentType: 'Full-time',
+    experience: 0,
   });
   const [skillSearch, setSkillSearch] = useState('');
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: ['experience', 'numQuestions'].includes(name) ? Number(value) : value
+    }));
+  };
 
   const toggleSkill = (skill: string) => {
     const currentSkills = formData.skills
@@ -176,6 +187,9 @@ const PostJob: React.FC = () => {
         numQuestions: formData.numQuestions,
         customFields,
         category: formData.category,
+        difficulty: formData.difficulty,
+        employmentType: formData.employmentType,
+        experience: formData.experience,
         applyDeadline: Timestamp.fromDate(deadlineDate),
         recruiterUID: user.uid,
         recruiterName: userProfile?.fullname || user.email,
@@ -192,8 +206,8 @@ const PostJob: React.FC = () => {
         title: `${formData.title} Interview`,
         description: formData.description,
         department: formData.category || 'General',
-        employmentType: 'Full-time', // Defaulting for auto-generation
-        experience: 0,
+        employmentType: formData.employmentType,
+        experience: formData.experience,
         skills: formData.skills,
         education: formData.qualifications,
         deadline: formData.deadline,
@@ -202,6 +216,7 @@ const PostJob: React.FC = () => {
         numQuestions: formData.numQuestions,
         interviewLink: newInterviewLink,
         accessCode: newAccessCode,
+        difficulty: formData.difficulty,
         recruiterUID: user.uid,
         jobId: jobId,
         createdAt: serverTimestamp(),
@@ -252,20 +267,20 @@ const PostJob: React.FC = () => {
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Job Title</label>
               <input
-                type="text" required
+                type="text" required name="title"
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 value={formData.title}
-                onChange={e => setFormData({ ...formData, title: e.target.value })}
+                onChange={handleFormChange}
                 placeholder="e.g. Senior Frontend Developer"
               />
             </div>
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Company Name</label>
               <input
-                type="text" required
+                type="text" required name="companyName"
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 value={formData.companyName}
-                onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                onChange={handleFormChange}
                 placeholder="e.g. TechCorp Inc."
               />
             </div>
@@ -274,10 +289,10 @@ const PostJob: React.FC = () => {
           <div className="space-y-2 form-field">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Qualifications</label>
             <textarea
-              required rows={2}
+              required rows={2} name="qualifications"
               className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all resize-none"
               value={formData.qualifications}
-              onChange={e => setFormData({ ...formData, qualifications: e.target.value })}
+              onChange={handleFormChange}
               placeholder="Briefly list key qualifications..."
             />
           </div>
@@ -286,19 +301,20 @@ const PostJob: React.FC = () => {
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Application Deadline</label>
               <input
-                type="date" required
+                type="date" required name="deadline"
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all dark:[color-scheme:dark]"
                 value={formData.deadline}
-                onChange={e => setFormData({ ...formData, deadline: e.target.value })}
+                onChange={handleFormChange}
               />
             </div>
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Interview Access</label>
               <div className="relative">
                 <select
+                  name="permission"
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white appearance-none focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                   value={formData.permission}
-                  onChange={e => setFormData({ ...formData, permission: e.target.value })}
+                  onChange={handleFormChange}
                 >
                   <option value="anyone">Direct Start (No Request)</option>
                   <option value="request">Request Permission Needed</option>
@@ -313,10 +329,10 @@ const PostJob: React.FC = () => {
           <div className="space-y-2 form-field">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Job Description</label>
             <textarea
-              required rows={5}
+              required rows={5} name="description"
               className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
               value={formData.description}
-              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              onChange={handleFormChange}
               placeholder="Describe the role responsibilities and requirements..."
             />
           </div>
@@ -328,7 +344,7 @@ const PostJob: React.FC = () => {
                 <select
                   name="category"
                   value={formData.category}
-                  onChange={e => setFormData({ ...formData, category: e.target.value })}
+                  onChange={handleFormChange}
                   className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white appearance-none focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 >
                   <option value="">Select a Category</option>
@@ -342,12 +358,37 @@ const PostJob: React.FC = () => {
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Number of Questions</label>
               <input
-                type="number" required min="1" max="15"
+                type="number" required min="1" max="15" name="numQuestions"
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 value={formData.numQuestions}
-                onChange={e => setFormData({ ...formData, numQuestions: parseInt(e.target.value, 10) || 5 })}
+                onChange={handleFormChange}
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2 form-field">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Employment Type</label>
+              <select name="employmentType" value={formData.employmentType} onChange={handleFormChange} className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white appearance-none focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all">
+                <option value="Full-time">Full-time</option>
+                <option value="Part-time">Part-time</option>
+                <option value="Contract">Contract</option>
+                <option value="Internship">Internship</option>
+              </select>
+            </div>
+            <div className="space-y-2 form-field">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Required Experience (Years)</label>
+              <input type="number" name="experience" value={formData.experience} onChange={handleFormChange} className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all" />
+            </div>
+          </div>
+
+          <div className="space-y-2 form-field">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Difficulty Level</label>
+            <select name="difficulty" value={formData.difficulty} onChange={handleFormChange} className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white appearance-none focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all">
+              <option value="Easy">Easy</option>
+              <option value="Medium">Medium</option>
+              <option value="Hard">Hard</option>
+            </select>
           </div>
 
           <div className="space-y-2 form-field">

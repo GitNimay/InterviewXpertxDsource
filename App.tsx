@@ -196,7 +196,6 @@ const App: React.FC = () => {
                   <Route path="recruiter/interviews" element={<ProtectedRoute role="recruiter"><RecruiterInterviews /></ProtectedRoute>} />
                   <Route path="recruiter/interview/responses/:interviewId" element={<ProtectedRoute role="recruiter"><InterviewResponses /></ProtectedRoute>} />
                   <Route path="recruiter/job/:jobId/candidates" element={<ProtectedRoute role="recruiter"><JobCandidates /></ProtectedRoute>} />
-                  <Route path="recruiter/edit-job/:jobId" element={<ProtectedRoute role="recruiter"><EditJob /></ProtectedRoute>} />
                   <Route path="recruiter/post" element={<ProtectedRoute role="recruiter"><PostJob /></ProtectedRoute>} />
                   <Route path="recruiter/interview/create" element={<ProtectedRoute role="recruiter"><CreateInterview /></ProtectedRoute>} />
                   <Route path="recruiter/candidates" element={<ProtectedRoute role="recruiter"><ManageCandidates /></ProtectedRoute>} />

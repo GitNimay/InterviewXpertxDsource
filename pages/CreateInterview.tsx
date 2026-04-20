@@ -38,6 +38,7 @@ const CreateInterview: React.FC = () => {
     education: '',
     deadline: '',
     numQuestions: 5,
+    difficulty: 'Medium',
   });
 
   useEffect(() => {
@@ -69,6 +70,14 @@ const CreateInterview: React.FC = () => {
 
     return () => ctx.revert();
   }, []);
+
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: ['experience', 'numQuestions'].includes(name) ? Number(value) : value
+    }));
+  };
 
   const toggleSkill = (skill: string) => {
     const currentSkills = formData.skills
@@ -332,22 +341,22 @@ const CreateInterview: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2 form-field">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Job Title / Role</label>
-            <input
-              type="text" required
+            <input name="title"
+              type="text" required 
               className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
               value={formData.title}
-              onChange={e => setFormData({ ...formData, title: e.target.value })}
+              onChange={handleFormChange}
               placeholder="e.g. Senior Frontend Engineer"
             />
           </div>
 
           <div className="space-y-2 form-field">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Job Description</label>
-            <textarea
-              required rows={5}
+            <textarea name="description"
+              required rows={5} 
               className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
               value={formData.description}
-              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              onChange={handleFormChange}
               placeholder="Describe the role, responsibilities, and what you'''re looking for..."
             />
           </div>
@@ -355,21 +364,21 @@ const CreateInterview: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Company Department</label>
-              <input
-                type="text" required
+              <input name="department"
+                type="text" required 
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 value={formData.department}
-                onChange={e => setFormData({ ...formData, department: e.target.value })}
+                onChange={handleFormChange}
                 placeholder="e.g. Engineering, Marketing, Sales"
               />
             </div>
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Employment Type</label>
-              <select
-                required
+              <select name="employmentType"
+                required 
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 value={formData.employmentType}
-                onChange={e => setFormData({ ...formData, employmentType: e.target.value })}
+                onChange={handleFormChange}
               >
                 <option value="">Select...</option>
                 <option value="Full-time">Full-time</option>
@@ -383,21 +392,21 @@ const CreateInterview: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Required Experience (Years)</label>
-              <input
-                type="number" required
+              <input name="experience"
+                type="number" required 
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 value={formData.experience}
-                onChange={e => setFormData({ ...formData, experience: parseInt(e.target.value) })}
+                onChange={handleFormChange}
                 placeholder="e.g. 3"
               />
             </div>
             <div className="space-y-2 form-field">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Minimum Education Level</label>
-              <select
-                required
+              <select name="education"
+                required 
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
                 value={formData.education}
-                onChange={e => setFormData({ ...formData, education: e.target.value })}
+                onChange={handleFormChange}
               >
                 <option value="">Select...</option>
                 <option value="High School">High School</option>
@@ -491,15 +500,11 @@ const CreateInterview: React.FC = () => {
                 >
                   <i className="fa-solid fa-minus text-xs"></i>
                 </button>
-                
-                <input
-                  type="number" min="1" max="25"
+                <input name="numQuestions"
+                  type="number" min="1" max="25" 
                   className="w-12 text-center bg-transparent border-none text-lg font-bold text-gray-900 dark:text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   value={formData.numQuestions}
-                  onChange={e => {
-                    const val = parseInt(e.target.value) || 1;
-                    setFormData({ ...formData, numQuestions: Math.max(1, Math.min(25, val)) });
-                  }}
+                  onChange={handleFormChange}
                 />
                 
                 <button
@@ -512,6 +517,20 @@ const CreateInterview: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+          
+          <div className="space-y-2 form-field">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Difficulty Level</label>
+            <select 
+              name="difficulty" 
+              value={formData.difficulty} 
+              onChange={handleFormChange} 
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white appearance-none focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
+            >
+              <option value="Easy">Easy</option>
+              <option value="Medium">Medium</option>
+              <option value="Hard">Hard</option>
+            </select>
           </div>
 
           <div className="space-y-4 form-field p-6 bg-blue-50/50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/20 rounded-2xl">
@@ -616,11 +635,11 @@ const CreateInterview: React.FC = () => {
 
           <div className="space-y-2 form-field">
             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Application Deadline</label>
-            <input
-              type="date"
+            <input name="deadline"
+              type="date" 
               className="w-full px-4 py-3 bg-gray-50 dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all dark:[color-scheme:dark]"
               value={formData.deadline}
-              onChange={e => setFormData({ ...formData, deadline: e.target.value })}
+              onChange={handleFormChange}
             />
           </div>
           

@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import gsap from 'gsap';
 import { useMessageBox } from '../components/MessageBox';
+import EditJobModal from './EditJob';
 
 const RecruiterDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -17,6 +18,7 @@ const RecruiterDashboard: React.FC = () => {
   const [requests, setRequests] = useState<InterviewRequest[]>([]);
   const [interviews, setInterviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const messageBox = useMessageBox();
 
   useEffect(() => {
@@ -112,6 +114,7 @@ const RecruiterDashboard: React.FC = () => {
     messageBox.showConfirm("Are you sure you want to delete this job?", async () => {
       try {
         await deleteDoc(doc(db, 'jobs', jobId));
+        await deleteDoc(doc(db, 'interviews', jobId));
         setJobs(jobs.filter(j => j.id !== jobId));
       } catch (err) {
         messageBox.showError("Error deleting job");
@@ -378,9 +381,9 @@ const RecruiterDashboard: React.FC = () => {
                         <Link to={`/recruiter/job/${job.id}/candidates`} className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="View Candidates">
                           <i className="fas fa-users"></i>
                         </Link>
-                        <Link to={`/recruiter/edit-job/${job.id}`} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit">
+                        <button onClick={() => setEditingJobId(job.id)} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit">
                           <i className="fas fa-edit"></i>
-                        </Link>
+                        </button>
                         <button onClick={() => handleDelete(job.id)} className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" title="Delete">
                           <i className="fas fa-trash"></i>
                         </button>
@@ -393,6 +396,8 @@ const RecruiterDashboard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {editingJobId && <EditJobModal jobId={editingJobId} onClose={() => setEditingJobId(null)} />}
     </div>
   );
 };
