@@ -194,7 +194,7 @@ const MockInterviewSetup: React.FC = () => {
         : `Generate ${numQuestions} ${difficulty}-level coding problems about "${assessmentTopic}". Return ONLY a raw JSON array. Schema: [{"title": "string", "description": "string", "testCases": "string"}]`;
 
       const response = await genAI.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-pro",
         contents: [{
           parts: [{ text: prompt }]
         }],

@@ -281,14 +281,7 @@ const EmbeddedCareerBot: React.FC = () => {
             CRITICAL GEOMETRY INSTRUCTION: Whenever a user asks for a roadmap, timeline, architecture, map, flowchart, pathway, or implies they need a graphical sequence, you MUST embed a fully robust Mermaid.js graph. 
             Use the exact markdown block delimiter \`\`\`mermaid. 
             Keep text formatting slick and actionable. Never use asterisks for lists, format using numerical points organically. Evaluate the job market accurately and provide high-end, premium responses. Double check your mermaid formatting strings, never break graph logic. Prefer 'graph TD' or 'graph LR' syntax deeply.`;
-
-            const fallbackModels = [
-                "gemini-2.5-flash", 
-                "gemini-2.0-flash",
-                "gemini-1.5-flash", 
-                "gemini-2.5-pro", 
-                "gemini-1.5-pro"
-            ];
+            const fallbackModels = ["gemini-2.5-pro"];
             
             let response = null;
             let lastError = null;

@@ -59,7 +59,7 @@ Instructions:
 IMPORTANT: You MUST generate the questions strictly in the **${targetLanguage}** language. For Hindi and Marathi, you MUST use the native Devanagari script. DO NOT output English letters for Hindi or Marathi questions.`;
 
   try {
-    const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro"];
+    const fallbackModels = ["gemini-2.5-pro"];
     let response: any = null;
     let lastError: any = null;
 
@@ -138,10 +138,10 @@ Interview Questions & Answers:
 
   feedbackPrompt += `\n---\nEvaluation Instructions:
 Analyze the provided information based on the job description and candidate's resume and transcribed answers.
-Provide a structured evaluation covering:
+Provide a structured evaluation covering: 
 1. **Resume Analysis:** Evaluate how well the candidate's background/skills from the resume align with the job requirements.
 2. **Answer Quality:** Analyze the quality of the transcribed answers for clarity, relevance, depth, and communication skills.
-3. **Overall Evaluation:** Provide a concise summary.
+3. **Overall Evaluation:** Provide a very concise summary (1-2 sentences maximum).
 
 Finally, provide numerical scores in the specific format "[Score]/100". Ensure scores are integers between 0 and 100.
 * **Resume Score:** Assess score based *only* on the resume's relevance.
@@ -164,7 +164,7 @@ Q&A Score: [Score]/100
 Overall Score: [Score]/100`;
 
   try {
-    const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro", "gemini-1.5-pro"];
+    const fallbackModels = ["gemini-2.5-pro"];
     let response: any = null;
     let lastError: any = null;
 
