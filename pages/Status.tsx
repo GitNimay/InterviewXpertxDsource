@@ -95,53 +95,34 @@ const checkCloudinary = async (): Promise<{ ok: boolean; ms: number }> => {
   }
 };
 
-// SECURITY WARNING: This check uses an API key on the client-side.
-// Ensure the key is restricted to your domain (HTTP referrers) in the Google Cloud Console
-// to prevent unauthorized use.
-const checkGemini = async (): Promise<{ ok: boolean; ms: number; modelStatus: string }> => {
+// Checks the xAI Grok API by sending a minimal chat completion request.
+const checkGrok = async (): Promise<{ ok: boolean; ms: number; modelStatus: string }> => {
   const start = performance.now();
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = import.meta.env.VITE_XAI_API_KEY;
 
   if (!apiKey) {
     return { ok: false, ms: 0, modelStatus: 'API Key Missing' };
   }
 
-  // List of models to check, from most to least preferred/likely
-  const modelsToCheck = [
-    "gemini-2.5-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
-  ];
-
   try {
-    for (const model of modelsToCheck) {
-      // Using a simple generateContent call to check model health
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const response = await withTimeout(
-        fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "hello" }] }],
-          }),
+    const res = await withTimeout(
+      fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: 'grok-4-1-fast-non-reasoning',
+          messages: [{ role: 'user', content: 'ping' }],
+          max_tokens: 1,
         }),
-        5000 // 5 second timeout for this specific check
-      );
+      }),
+      5000
+    );
 
-      if (response.ok) {
-        // If we get a successful response from any model, the service is operational.
-        return {
-          ok: true,
-          ms: Math.round(performance.now() - start),
-          modelStatus: `${model} is responding`,
-        };
-      }
+    if (res.ok) {
+      return { ok: true, ms: Math.round(performance.now() - start), modelStatus: 'grok-4-1-fast-non-reasoning is responding' };
     }
-    // If all models fail with a valid response but not 'ok' (e.g., 4xx errors)
-    return { ok: false, ms: Math.round(performance.now() - start), modelStatus: 'Models unresponsive' };
-
+    return { ok: false, ms: Math.round(performance.now() - start), modelStatus: `HTTP ${res.status}` };
   } catch (error: any) {
-    // This catches network errors, timeouts, etc.
     return { ok: false, ms: Math.round(performance.now() - start), modelStatus: 'API unreachable' };
   }
 };
@@ -156,7 +137,7 @@ const StatusPage: React.FC = () => {
     // Reset to checking
     setServices((prev) => prev.map((s) => ({ ...s, status: 'checking' as const })));
 
-    const checkers = [checkBrevo, checkSarvam, checkFirebase, checkCloudinary, checkGemini];
+    const checkers = [checkBrevo, checkSarvam, checkFirebase, checkCloudinary, checkGrok];
 
     const results = await Promise.allSettled(checkers.map((fn) => fn()));
 

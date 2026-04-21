@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI } from '@google/genai';
+
 import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
@@ -62,7 +62,7 @@ const AIAgent: React.FC = () => {
     const [fullProfile, setFullProfile] = useState<any>(null);
     const [pastInterviews, setPastInterviews] = useState<any[]>([]);
 
-    const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const XAI_KEY = import.meta.env.VITE_XAI_API_KEY;
 
     // --- Initialization ---
 
@@ -203,16 +203,7 @@ const AIAgent: React.FC = () => {
         setLoading(true);
 
         try {
-            // Prepare context
-            const history = updatedSessions[sessionIndex].messages.map(m => ({
-                role: m.role,
-                parts: [{ text: m.text }]
-            }));
-
-            // Remove the last user message we just added from history array passed to API 
-            // (SDK handles conversation history differently, but for manual construction we pass pure history + last msg)
-            // But here we'll just pass the full history to the model directly if using sendMessage on a chat session object
-            // For simplicity with generateContent, we pass the full list.
+            if (!XAI_KEY) throw new Error('XAI API key missing');
 
             // Build Context Strings
             const profileContext = fullProfile ? `
@@ -254,15 +245,26 @@ const AIAgent: React.FC = () => {
             
             Remember: Keep responses well-structured but clean without any special formatting symbols.`;
 
-            const response = await genAI.models.generateContent({
-                model: "gemini-2.5-pro",
-                contents: [
-                    { role: "user", parts: [{ text: systemInstruction }] },
-                    ...history
-                ]
-            });
+            // Convert message history to OpenAI role format (Grok uses 'assistant' not 'model')
+            const history = updatedSessions[sessionIndex].messages.map(m => ({
+                role: m.role === 'model' ? 'assistant' as const : 'user' as const,
+                content: m.text
+            }));
 
-            const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate a response.";
+            const res = await fetch('https://api.x.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_KEY}` },
+                body: JSON.stringify({
+                    model: 'grok-4-1-fast-non-reasoning',
+                    messages: [
+                        { role: 'system', content: systemInstruction },
+                        ...history
+                    ],
+                    temperature: 0.7,
+                }),
+            });
+            const aiData = await res.json();
+            const text = aiData.choices?.[0]?.message?.content || "I couldn't generate a response.";
 
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),

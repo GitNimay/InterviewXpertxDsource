@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { grokGenerateWithResume, BUDGET } from "./grokService";
 
 // Config Constants (loaded from environment variables)
 const ASSEMBLYAI_API_KEY = import.meta.env.VITE_ASSEMBLYAI_API_KEY;
@@ -11,14 +11,23 @@ const AUTO_CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY
 const RAW_CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`;
 const ASSEMBLYAI_TRANSCRIPT_ENDPOINT = 'https://api.assemblyai.com/v2/transcript';
 
-// --- Gemini API ---
-// Note: Client-side API usage is generally insecure for production but maintained here as per legacy code structure.
-// Using process.env.API_KEY as per coding guidelines
+// ── Token-saving helpers ──────────────────────────────────────────────────────
+// Truncate long strings at the source so we never send walls of text to the API.
+const truncate = (s: string, max: number) =>
+  s && s.length > max ? s.slice(0, max) + '…' : (s || '');
 
+// Resume: 800 chars is enough to convey skills/titles. Full PDF text is wasteful.
+const RESUME_MAX_CHARS = 800;
+// JD: 600 chars keeps the role context without padding.
+const JD_MAX_CHARS = 600;
+// Transcript per answer: cap long rambling answers to save feedback input tokens.
+const TRANSCRIPT_MAX_CHARS = 300;
+
+// ── TTS ───────────────────────────────────────────────────────────────────────
 export const generateOpenAITTS = async (text: string) => {
   const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
   if (!OPENAI_API_KEY) {
-    throw new Error("OpenAI API key missing. Please add VITE_OPENAI_API_KEY to your .env file to use premium TTS.");
+    throw new Error("OpenAI API key missing. Add VITE_OPENAI_API_KEY to .env.");
   }
 
   const response = await fetch("https://api.openai.com/v1/audio/speech", {
@@ -27,11 +36,7 @@ export const generateOpenAITTS = async (text: string) => {
       "Authorization": `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      model: "tts-1",
-      input: text,
-      voice: "alloy"
-    })
+    body: JSON.stringify({ model: "tts-1", input: text, voice: "alloy" })
   });
 
   if (!response.ok) {
@@ -42,78 +47,45 @@ export const generateOpenAITTS = async (text: string) => {
   const blob = await response.blob();
   return URL.createObjectURL(blob);
 };
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
-export const generateInterviewQuestions = async (jobTitle: string, jobDescription: string, candidateExp: string, base64Resume: string, mimeType: string, languageCode: string = 'en', numQuestions: number = 5) => {
-  const targetLanguage = languageCode === 'mr' ? 'Marathi' : languageCode === 'hi' ? 'Hindi' : 'English';
-  const prompt = `You are an AI interviewer. Your task is to generate ${numQuestions} diverse interview questions for a candidate applying for the "${jobTitle}" role.
-The job description is: "${jobDescription}"
-The candidate's stated experience is: ${candidateExp}.
-Review the attached resume image to understand the candidate's background, skills, and experience.
-Generate ${numQuestions} interview questions that are relevant to the job and the candidate's resume.
-Instructions:
-1. Provide EXACTLY ${numQuestions} questions.
-2. Each question must be on a NEW LINE.
-3. DO NOT include numbering (e.g., 1., 2., - ), bullet points (* ), or any introductory/concluding text.
-4. Just provide the plain question text, one per line.
-IMPORTANT: You MUST generate the questions strictly in the **${targetLanguage}** language. For Hindi and Marathi, you MUST use the native Devanagari script. DO NOT output English letters for Hindi or Marathi questions.`;
+// ── Interview Question Generation ─────────────────────────────────────────────
+export const generateInterviewQuestions = async (
+  jobTitle: string,
+  jobDescription: string,
+  candidateExp: string,
+  base64Resume: string,
+  mimeType: string,
+  languageCode: string = 'en',
+  numQuestions: number = 5
+) => {
+  const lang = languageCode === 'mr' ? 'Marathi (Devanagari script only)'
+             : languageCode === 'hi' ? 'Hindi (Devanagari script only)'
+             : 'English';
+
+  // Truncate to save input tokens
+  const jd  = truncate(jobDescription, JD_MAX_CHARS);
+  const exp = truncate(candidateExp, 150);
+
+  // Compact prompt — same intent, ~40% fewer tokens than before
+  const prompt =
+`Generate exactly ${numQuestions} interview questions for role: "${jobTitle}".
+JD: ${jd}
+Experience: ${exp}
+Rules: one question per line, no numbering/bullets/preamble/closing text.
+Language: ${lang}.`;
 
   try {
-    const fallbackModels = ["gemini-2.5-pro"];
-    let response: any = null;
-    let lastError: any = null;
-
-    // Gemini only accepts specific mime types for inlineData (images, pdfs, audio, video).
-    // If it's pure text (like our synthesized profiles) or unsupported, we inject it as text instead.
-    const isTextBase = mimeType.startsWith('text/') || mimeType === 'application/json';
-    const isSupportedInline = mimeType.startsWith('image/') || mimeType === 'application/pdf';
-    
-    // Safely coercing mimeType for PDFs if it failed to detect
-    const safeMimeType = (mimeType === 'application/octet-stream' || !mimeType) ? 'application/pdf' : mimeType;
-
-    const parts: any[] = [prompt];
-    
-    if (base64Resume) {
-        if (isTextBase) {
-            try {
-                const decodedText = atob(base64Resume);
-                parts.push(`\nCandidate Resume Data:\n${decodedText}`);
-            } catch (e) {
-                console.warn("Could not decode text resume, sending as is.");
-                parts.push(`\nCandidate Resume Data:\n${base64Resume}`);
-            }
-        } else if (isSupportedInline || safeMimeType === 'application/pdf') {
-            parts.push({
-                inlineData: { mimeType: safeMimeType, data: base64Resume }
-            });
-        }
-    }
-
-    for (const model of fallbackModels) {
-      try {
-        console.log(`[Generate Questions] Trying model: ${model}`);
-        response = await ai.models.generateContent({
-          model: model,
-          contents: parts
-        });
-        if (response) break;
-      } catch (err: any) {
-        console.warn(`Fallback: ${model} failed for questions.`, err.message || err);
-        lastError = err;
-      }
-    }
-
-    if (!response) throw lastError || new Error("All AI models are unavailable for question generation.");
-
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    const cleanText = text.replace(/^\s*[\d\.\-\*\+]+\s*/gm, '').replace(/\*\*/g, '').trim();
-    return cleanText.split('\n').map(q => q.trim()).filter(q => q && q.length > 15).slice(0, numQuestions);
+    const sys = "You are an AI interviewer. Output only the requested questions, nothing else.";
+    const text = await grokGenerateWithResume(sys, prompt, base64Resume, mimeType, 0.5, BUDGET.QUESTIONS);
+    const clean = text.replace(/^\s*[\d\.\-\*\+]+\s*/gm, '').replace(/\*\*/g, '').trim();
+    return clean.split('\n').map(q => q.trim()).filter(q => q && q.length > 10).slice(0, numQuestions);
   } catch (error: any) {
-    console.error("Gemini Generate Questions Error:", error);
+    console.error("Grok Generate Questions Error:", error);
     throw new Error(error.message || "Failed to generate questions");
   }
 };
 
+// ── Feedback / Report Generation ──────────────────────────────────────────────
 export const generateFeedback = async (
   jobTitle: string,
   jobDescription: string,
@@ -123,100 +95,51 @@ export const generateFeedback = async (
   questions: string[],
   transcripts: string[]
 ) => {
-  let feedbackPrompt = `You are an AI hiring assistant evaluating a candidate's interview performance for the "${jobTitle}" role.
-Job Description: "${jobDescription}"
-Candidate Stated Experience: ${candidateExp}
-Candidate Resume: [Attached Image]
+  const jd  = truncate(jobDescription, JD_MAX_CHARS);
+  const exp = truncate(candidateExp, 150);
 
-Interview Questions & Answers:
----\n`;
+  // Build Q&A block — each transcript is capped to save tokens
+  const qaBlock = questions.map((q, i) => {
+    const ans = truncate(transcripts[i] || '(unavailable)', TRANSCRIPT_MAX_CHARS);
+    return `Q${i + 1}: ${q}\nA${i + 1}: ${ans}`;
+  }).join('\n---\n');
 
-  questions.forEach((q, i) => {
-    const transcript = transcripts[i] || '(Transcription Unavailable)';
-    feedbackPrompt += `Question ${i + 1}: ${q}\nAnswer ${i + 1} Transcription: ${transcript}\n---\n`;
-  });
+  // Compact feedback prompt — output capped to 1-2 lines per section as requested
+  const feedbackPrompt =
+`Evaluate candidate for "${jobTitle}".
+JD: ${jd}
+Experience: ${exp}
 
-  feedbackPrompt += `\n---\nEvaluation Instructions:
-Analyze the provided information based on the job description and candidate's resume and transcribed answers.
-Provide a structured evaluation covering: 
-1. **Resume Analysis:** Evaluate how well the candidate's background/skills from the resume align with the job requirements.
-2. **Answer Quality:** Analyze the quality of the transcribed answers for clarity, relevance, depth, and communication skills.
-3. **Overall Evaluation:** Provide a very concise summary (1-2 sentences maximum).
+Q&A:
+${qaBlock}
 
-Finally, provide numerical scores in the specific format "[Score]/100". Ensure scores are integers between 0 and 100.
-* **Resume Score:** Assess score based *only* on the resume's relevance.
-* **Q&A Score:** Assess score based *only* on the answers.
-* **Overall Score:** Weighted score (Resume ~45%, Q&A ~55%).
-
-Output Format (Use Markdown Headings EXACTLY as listed):
-**Resume Analysis:**
-[Analysis]
-
-**Answer Quality:**
-[Analysis]
-
-**Overall Evaluation:**
-[Summary]
-
+Output EXACTLY this format (2 lines max per section):
+**Resume Analysis:** [2 lines max on resume-job fit]
+**Answer Quality:** [2 lines max on communication/relevance]
+**Overall Evaluation:** [1 sentence summary]
 **Scores:**
-Resume Score: [Score]/100
-Q&A Score: [Score]/100
-Overall Score: [Score]/100`;
+Resume Score: [0-100]/100
+Q&A Score: [0-100]/100
+Overall Score: [0-100]/100`;
 
   try {
-    const fallbackModels = ["gemini-2.5-pro"];
-    let response: any = null;
-    let lastError: any = null;
-
-    const isTextBase = mimeType.startsWith('text/') || mimeType === 'application/json';
-    const isSupportedInline = mimeType.startsWith('image/') || mimeType === 'application/pdf';
-    const safeMimeType = (mimeType === 'application/octet-stream' || !mimeType) ? 'application/pdf' : mimeType;
-
-    const parts: any[] = [feedbackPrompt];
-    
-    if (base64Resume) {
-        if (isTextBase) {
-            try {
-                const decodedText = atob(base64Resume);
-                parts.push(`\nCandidate Resume Data:\n${decodedText}`);
-            } catch (e) {
-                parts.push(`\nCandidate Resume Data:\n${base64Resume}`);
-            }
-        } else if (isSupportedInline || safeMimeType === 'application/pdf') {
-            parts.push({
-                inlineData: { mimeType: safeMimeType, data: base64Resume }
-            });
-        }
-    }
-
-    for (const model of fallbackModels) {
-      try {
-        console.log(`[Generate Feedback] Trying model: ${model}`);
-        response = await ai.models.generateContent({
-          model: model,
-          contents: parts
-        });
-        if (response) break;
-      } catch (err: any) {
-        console.warn(`Fallback: ${model} failed for feedback.`, err.message || err);
-        lastError = err;
-      }
-    }
-
-    if (!response) throw lastError || new Error("All AI models are unavailable for feedback generation.");
-
-    return response.candidates?.[0]?.content?.parts?.[0]?.text || "AI feedback generation failed.";
+    const sys = "You are a hiring evaluator. Follow the output format exactly. Be concise.";
+    const result = await grokGenerateWithResume(sys, feedbackPrompt, base64Resume, mimeType, 0.3, BUDGET.FEEDBACK);
+    return result || "AI feedback generation failed.";
   } catch (error: any) {
-    console.error("Gemini Feedback Error:", error);
+    console.error("Grok Feedback Error:", error);
     throw new Error(error.message);
   }
 };
 
-// --- Cloudinary ---
+// ── Cloudinary ────────────────────────────────────────────────────────────────
 export const uploadToCloudinary = async (blob: Blob, resourceType: 'video' | 'image' | 'auto' | 'raw' = 'auto') => {
   const isVideo = resourceType === 'video';
   const isRaw = resourceType === 'raw';
-  const uploadUrl = resourceType === 'auto' ? AUTO_CLOUDINARY_UPLOAD_URL : (isVideo ? VIDEO_CLOUDINARY_UPLOAD_URL : (isRaw ? RAW_CLOUDINARY_UPLOAD_URL : RESUME_CLOUDINARY_UPLOAD_URL));
+  const uploadUrl = resourceType === 'auto'
+    ? AUTO_CLOUDINARY_UPLOAD_URL
+    : (isVideo ? VIDEO_CLOUDINARY_UPLOAD_URL : (isRaw ? RAW_CLOUDINARY_UPLOAD_URL : RESUME_CLOUDINARY_UPLOAD_URL));
+
   const formData = new FormData();
   formData.append('file', blob);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
@@ -232,14 +155,11 @@ export const uploadToCloudinary = async (blob: Blob, resourceType: 'video' | 'im
   }
 };
 
-// --- AssemblyAI ---
+// ── AssemblyAI ────────────────────────────────────────────────────────────────
 export const requestTranscription = async (audioUrl: string, languageCode: string = 'en') => {
   try {
     const body: any = { audio_url: audioUrl, language_code: languageCode };
-    // Use the Nano model for non-English languages for better accuracy in regional dialects
-    if (languageCode !== 'en') {
-      body.speech_model = 'nano';
-    }
+    if (languageCode !== 'en') body.speech_model = 'nano';
     const response = await fetch(ASSEMBLYAI_TRANSCRIPT_ENDPOINT, {
       method: 'POST',
       headers: { 'authorization': ASSEMBLYAI_API_KEY, 'content-type': 'application/json' },
@@ -263,7 +183,7 @@ export const fetchTranscriptText = async (transcriptId: string) => {
     const data = await response.json();
     if (data.status === 'completed') return { status: 'completed', text: data.text || '(No speech detected)' };
     if (data.status === 'error') return { status: 'error', text: `Error: ${data.error}` };
-    return { status: data.status, text: null }; // queued or processing
+    return { status: data.status, text: null };
   } catch (error: any) {
     return { status: 'error', text: `Error: ${error.message}` };
   }

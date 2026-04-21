@@ -4,7 +4,7 @@ import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useMessageBox } from '../components/MessageBox';
-import { GoogleGenAI } from '@google/genai';
+
 
 const MockInterviewSetup: React.FC = () => {
   const { user } = useAuth();
@@ -188,35 +188,32 @@ const MockInterviewSetup: React.FC = () => {
         return;
       }
 
-      const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+      const xaiKey = import.meta.env.VITE_XAI_API_KEY;
+      if (!xaiKey) throw new Error('XAI API key missing');
       const prompt = assessmentType === 'aptitude'
         ? `Generate ${numQuestions} ${difficulty}-level aptitude multiple choice questions about "${assessmentTopic}". Return ONLY a raw JSON array. Schema: [{"question": "string", "options": ["string", "string", "string", "string"], "correctIndex": number}]`
         : `Generate ${numQuestions} ${difficulty}-level coding problems about "${assessmentTopic}". Return ONLY a raw JSON array. Schema: [{"title": "string", "description": "string", "testCases": "string"}]`;
 
-      const response = await genAI.models.generateContent({
-        model: "gemini-2.5-pro",
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        config: {
-          responseMimeType: "application/json"
-        }
+      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${xaiKey}` },
+        body: JSON.stringify({
+          model: 'grok-4-1-fast-non-reasoning',
+          messages: [
+            { role: 'system', content: 'You are an expert assessment generator. Return only valid JSON arrays.' },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.6,
+        }),
       });
-      
-      let text = "";
-      // Handle different SDK response structures
-      if ((response as any).response && typeof (response as any).response.text === 'function') {
-         text = (response as any).response.text();
-      } else if (response.candidates && response.candidates.length > 0) {
-         text = response.candidates[0].content?.parts?.[0]?.text || "";
-      }
-
-      if (!text) throw new Error("No response from AI");
-
-      const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const questions = JSON.parse(cleanText);
-
-      if (!Array.isArray(questions)) throw new Error("AI response is not an array");
+      const aiData = await res.json();
+      const rawText = aiData.choices?.[0]?.message?.content || '';
+      if (!rawText) throw new Error('No response from Grok');
+      // Grok may return {questions: [...]} or a bare array — handle both
+      let parsed = JSON.parse(rawText);
+      const questions: any[] = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.problems || Object.values(parsed)[0] as any[]);
+      if (!Array.isArray(questions)) throw new Error('AI response is not an array');
 
       // Deduct Points only after successful generation
       await updateDoc(userRef, {

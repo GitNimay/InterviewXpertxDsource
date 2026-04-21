@@ -19,9 +19,7 @@ export default defineConfig(({ mode }) => {
         target: 'esnext',
       },
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GROK_API_KEY': JSON.stringify(env.GROK_API_KEY)
+        'process.env.XAI_API_KEY': JSON.stringify(env.VITE_XAI_API_KEY),
       },
       resolve: {
         alias: {

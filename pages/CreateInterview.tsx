@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { SKILL_OPTIONS } from './Profile';
 import * as pdfjsLib from 'pdfjs-dist';
-import { GoogleGenAI } from '@google/genai';
+
 import { sendInterviewInvitations } from '../services/brevoService';
 
 // Setup PDF.js worker to enable PDF parsing
@@ -155,24 +155,26 @@ const CreateInterview: React.FC = () => {
         return;
       }
 
-      const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-      const prompt = `You are an expert HR assistant. Parse the following job description text and extract the fields into a raw JSON object. Schema: {"title": "string", "description": "string", "department": "string", "employmentType": "string", "experience": "number", "skills": "string", "education": "string"}. Text: --- ${text} ---`;
+      const xaiKey = import.meta.env.VITE_XAI_API_KEY;
+      if (!xaiKey) throw new Error('XAI API key missing');
+      const prompt = `You are an expert HR assistant. Parse the following job description text and extract the fields into a raw JSON object. Schema: {"title": "string", "description": "string", "department": "string", "employmentType": "string", "experience": "number", "skills": "string", "education": "string"}. Return ONLY valid JSON. Text: --- ${text} ---`;
 
-      const response = await genAI.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{ parts: [{ text: prompt }] }],
-        config: { responseMimeType: "application/json" }
+      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${xaiKey}` },
+        body: JSON.stringify({
+          model: 'grok-4-1-fast-non-reasoning',
+          messages: [
+            { role: 'system', content: 'You are an expert HR assistant. Return only valid JSON.' },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.2,
+        }),
       });
-
-      let aiResponseText = "";
-      if ((response as any).response && typeof (response as any).response.text === 'function') {
-         aiResponseText = (response as any).response.text();
-      } else if (response.candidates && response.candidates.length > 0) {
-         aiResponseText = response.candidates[0].content?.parts?.[0]?.text || "";
-      }
-
-      if (!aiResponseText) throw new Error("AI did not return a response.");
-
+      const aiData = await res.json();
+      const aiResponseText = aiData.choices?.[0]?.message?.content || '';
+      if (!aiResponseText) throw new Error('Grok did not return a response.');
       const parsedData = JSON.parse(aiResponseText);
 
       setFormData(prev => ({

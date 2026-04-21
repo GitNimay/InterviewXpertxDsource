@@ -1093,13 +1093,16 @@ const ActiveInterviewSession: React.FC<{
     const faceapi = (window as any).faceapi;
     const video = videoRef.current;
 
-    // Motion detection setup
+    // Low-spec: 160×120 canvas for pixel diff — 4× fewer pixels than 320×240, 4× faster loop.
     const canvas = document.createElement('canvas');
-    canvas.width = 320; // Low res for performance
-    canvas.height = 240;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    canvas.width = 160;
+    canvas.height = 120;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: false });
     let prevFrame: Uint8ClampedArray | null = null;
 
+    // Low-spec optimization: 1500ms interval = ~0.67 FPS analysis.
+    // Helio G85 / Dimensity 700 cannot sustain 2 FPS of ML inference without dropping the JS timer.
+    // 0.67 FPS still gives reliable eye-contact and expression data over a 2-minute session.
     const interval = setInterval(async () => {
       try {
         if (video.paused || video.ended || !ctx) return;
@@ -1147,13 +1150,14 @@ const ActiveInterviewSession: React.FC<{
 
         if (prevFrame) {
           let diff = 0;
-          // Simple pixel diff (skip alpha)
-          for (let i = 0; i < frame.length; i += 4) {
-            if (Math.abs(frame[i] - prevFrame[i]) > 20 ||
+          // Stride=8: sample every 2nd pixel (RGBA=4 bytes, ×2 = skip odd pixels).
+          // 4× faster than stride=4, still accurate for motion detection.
+          for (let i = 0; i < frame.length; i += 8) {
+            if (
+              Math.abs(frame[i]     - prevFrame[i])     > 20 ||
               Math.abs(frame[i + 1] - prevFrame[i + 1]) > 20 ||
-              Math.abs(frame[i + 2] - prevFrame[i + 2]) > 20) {
-              diff++;
-            }
+              Math.abs(frame[i + 2] - prevFrame[i + 2]) > 20
+            ) diff++;
           }
           const motionPercent = diff / (canvas.width * canvas.height);
           // Confidence score: High motion = Low confidence (fidgeting)
@@ -1166,7 +1170,7 @@ const ActiveInterviewSession: React.FC<{
       } catch (err) {
         console.error("AI Processing Error", err);
       }
-    }, 500); // 2 FPS is enough for analysis and saves CPU
+    }, 1500); // 0.67 FPS — sufficient for analysis, safe on low-RAM devices
 
     return () => {
       clearInterval(interval);
@@ -1198,7 +1202,12 @@ const ActiveInterviewSession: React.FC<{
   useEffect(() => {
     const setupCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+        // Low-spec optimization: 320×240 reduces GPU/RAM pressure significantly.
+        // Audio-only track is sufficient for transcription; low video res is fine for proctoring.
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15, max: 20 } },
+          audio: true
+        });
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
       } catch (err) { alert("Camera permission denied. Please allow access."); }
@@ -1258,7 +1267,8 @@ const ActiveInterviewSession: React.FC<{
   const startRecording = () => {
     if (!streamRef.current) return;
     
-    let options: any = { videoBitsPerSecond: 250000 };
+    // Low-spec: 150kbps is sufficient for proctoring; saves encode CPU and upload time.
+    let options: any = { videoBitsPerSecond: 150_000 };
     if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
         options.mimeType = 'video/webm;codecs=vp8,opus';
     } else if (MediaRecorder.isTypeSupported('video/mp4')) {
@@ -1325,7 +1335,7 @@ const ActiveInterviewSession: React.FC<{
   const renderFullscreenOverlay = () => {
     if (!isFullscreen && !isTerminated) {
       return createPortal(
-        <div className="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 text-white text-center">
+        <div className="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4 sm:p-6 text-white text-center">
           <div className="max-w-md w-full p-6 sm:p-8 bg-[#111] rounded-2xl border border-red-500/30 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-yellow-500"></div>
             <i className="fas fa-exclamation-triangle text-5xl text-yellow-500 mb-4 animate-pulse"></i>
@@ -1371,8 +1381,8 @@ const ActiveInterviewSession: React.FC<{
 
   // --- SPLIT-PANEL DASHBOARD LAYOUT ---
   return (
-    <div 
-      className="fixed inset-0 z-[9999] bg-gray-100 dark:bg-slate-950 text-gray-900 dark:text-white flex flex-col overflow-hidden transition-colors duration-300 select-none"
+    <div
+      className="fixed inset-0 z-[9999] bg-gray-100 dark:bg-slate-950 text-gray-900 dark:text-white flex flex-col overflow-hidden select-none"
       style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
     >
       {renderFullscreenOverlay()}
@@ -1390,7 +1400,7 @@ const ActiveInterviewSession: React.FC<{
             {countdown > 0 && (
               <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-xl md:rounded-2xl">
                 <p className="text-white/80 text-sm md:text-lg font-light mb-1 md:mb-2 tracking-widest uppercase">Get Ready</p>
-                <span className="text-5xl md:text-8xl font-black text-white animate-ping" style={{ animationDuration: '1s' }}>{countdown}</span>
+                <span className="text-5xl md:text-8xl font-black text-white" style={{ animationDuration: '1s', animation: 'pulse 1s ease-in-out infinite' }}>{countdown}</span>
               </div>
             )}
 

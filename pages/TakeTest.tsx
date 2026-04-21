@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
-import { GoogleGenAI } from '@google/genai';
+
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { AlertTriangle, Clock, Code, Terminal, Play, FileCode, Settings, CheckCircle, Calculator as CalculatorIcon, Flag, X } from 'lucide-react';
@@ -411,9 +411,10 @@ const TakeTest: React.FC = () => {
       });
       score = Math.round((correctCount / test.questions.length) * 100);
     } else {
-      // AI Grading for Coding
+      // AI Grading for Coding (powered by Grok)
       try {
-        const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+        const xaiKey = import.meta.env.VITE_XAI_API_KEY;
+        if (!xaiKey) throw new Error("XAI API key missing");
 
         const prompt = `Evaluate this code submission for the problem: "${test.questions[currentQ].title}".
         Description: ${test.questions[currentQ].description}
@@ -423,13 +424,21 @@ const TakeTest: React.FC = () => {
         
         Return ONLY a JSON object: { "score": number (0-100), "feedback": "string" }. Score based on correctness and logic.`;
 
-        const response = await genAI.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: {
-            parts: [{ text: prompt }]
-          }
+        const res = await fetch("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${xaiKey}` },
+          body: JSON.stringify({
+            model: "grok-4-1-fast-non-reasoning",
+            messages: [
+              { role: "system", content: "You are a code evaluation assistant. Return only valid JSON." },
+              { role: "user", content: prompt }
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.2,
+          }),
         });
-        const text = (response.candidates?.[0]?.content?.parts?.[0]?.text || "").replace(/```json|```/g, '').trim();
+        const data = await res.json();
+        const text = (data.choices?.[0]?.message?.content || "").replace(/```json|```/g, '').trim();
         const evalData = JSON.parse(text);
         score = evalData.score;
         feedback = evalData.feedback;

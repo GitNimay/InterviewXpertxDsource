@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, Code, Bot, ArrowRight, Zap, Target, BookOpen, Briefcase, Map, X, Send, User, ChevronRight, Download, MapPin, DollarSign, Clock } from 'lucide-react';
 import Navbar from '../components/landing/Navbar';
-import { GoogleGenAI } from '@google/genai';
+
 import { useAnimatedText } from '../hooks/useAnimatedText';
 import mermaid from 'mermaid';
 import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
@@ -255,7 +255,7 @@ const EmbeddedCareerBot: React.FC = () => {
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
-    const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const XAI_KEY = import.meta.env.VITE_XAI_API_KEY;
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -271,42 +271,34 @@ const EmbeddedCareerBot: React.FC = () => {
         setLoading(true);
 
         try {
-            const history = newMessages.map(m => ({
-                role: m.role,
-                parts: [{ text: m.text }]
-            }));
+            if (!XAI_KEY) throw new Error('XAI API key missing');
 
             const systemInstruction = `You are an expert, highly advanced Career Coach and Architect specialized in the Indian tech sector.
             CONTEXT: ALWAYS evaluate salaries in Indian Rupees (INR ₹) using LPA (Lakhs Per Annum) format. Reference Indian tech hubs (Bengaluru, Pune, Hyderabad, Gurgaon, Noida, Chennai, etc.) when discussing job markets limit generic western context.
             CRITICAL GEOMETRY INSTRUCTION: Whenever a user asks for a roadmap, timeline, architecture, map, flowchart, pathway, or implies they need a graphical sequence, you MUST embed a fully robust Mermaid.js graph. 
             Use the exact markdown block delimiter \`\`\`mermaid. 
             Keep text formatting slick and actionable. Never use asterisks for lists, format using numerical points organically. Evaluate the job market accurately and provide high-end, premium responses. Double check your mermaid formatting strings, never break graph logic. Prefer 'graph TD' or 'graph LR' syntax deeply.`;
-            const fallbackModels = ["gemini-2.5-pro"];
-            
-            let response = null;
-            let lastError = null;
 
-            for (const model of fallbackModels) {
-                try {
-                    response = await genAI.models.generateContent({
-                        model: model,
-                        contents: [
-                            { role: "user", parts: [{ text: systemInstruction }] },
-                            ...history
-                        ]
-                    });
-                    if (response) break; 
-                } catch (err: any) {
-                    console.warn(`AI model fallback: ${model} failed. Trying next...`, err.message || err);
-                    lastError = err;
-                }
-            }
+            // Build OpenAI-compatible history (Grok uses role: 'user'|'assistant')
+            const history = newMessages.map(m => ({
+                role: m.role === 'model' ? 'assistant' as const : 'user' as const,
+                content: m.text
+            }));
 
-            if (!response) {
-                throw lastError || new Error("All AI models are currently unavailable.");
-            }
-
-            const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "System anomaly: could not process vector matrix.";
+            const res = await fetch('https://api.x.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${XAI_KEY}` },
+                body: JSON.stringify({
+                    model: 'grok-4-1-fast-non-reasoning',
+                    messages: [
+                        { role: 'system', content: systemInstruction },
+                        ...history
+                    ],
+                    temperature: 0.7,
+                }),
+            });
+            const aiData = await res.json();
+            const text = aiData.choices?.[0]?.message?.content || 'System anomaly: could not process request.';
             setMessages([...newMessages, { id: (Date.now() + 1).toString(), role: 'model', text }]);
         } catch (error) {
             console.error("AI Generation Error", error);

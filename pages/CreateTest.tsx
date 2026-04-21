@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { addDoc, collection, serverTimestamp, query, getDocs, orderBy } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
-import { GoogleGenAI } from '@google/genai';
+
 import { Sparkles, Save, ArrowLeft, Plus, Trash, Link as LinkIcon } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -40,41 +40,38 @@ const CreateTest: React.FC = () => {
     fetchInterviews();
   }, []);
 
-  const genAI = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-
   const handleAiGenerate = async () => {
     if (!aiPrompt) return;
     setLoading(true);
     try {
+      const xaiKey = import.meta.env.VITE_XAI_API_KEY;
+      if (!xaiKey) throw new Error('XAI API key missing');
       const prompt = type === 'aptitude'
         ? `Generate 5 aptitude multiple choice questions about "${aiPrompt}". Return ONLY a raw JSON array. Schema: [{"question": "string", "options": ["string", "string", "string", "string"], "correctIndex": number}]`
         : `Generate 1 coding problem about "${aiPrompt}". Return ONLY a raw JSON array. Schema: [{"title": "string", "description": "string", "testCases": "string"}]`;
 
-      const response = await genAI.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        config: {
-          responseMimeType: "application/json"
-        }
+      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${xaiKey}` },
+        body: JSON.stringify({
+          model: 'grok-4-1-fast-non-reasoning',
+          messages: [
+            { role: 'system', content: 'You are an expert assessment generator. Return only valid JSON.' },
+            { role: 'user', content: prompt }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.6,
+        }),
       });
-      
-      let text = "";
-      if ((response as any).response && typeof (response as any).response.text === 'function') {
-         text = (response as any).response.text();
-      } else if (response.candidates && response.candidates.length > 0) {
-         text = response.candidates[0].content?.parts?.[0]?.text || "";
-      }
-
-      if (!text) throw new Error("No response from AI");
-      
-      const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      const generated = JSON.parse(cleanText);
+      const aiData = await res.json();
+      const rawText = aiData.choices?.[0]?.message?.content || '';
+      if (!rawText) throw new Error('No response from Grok');
+      let parsed = JSON.parse(rawText);
+      const generated: any[] = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.problems || Object.values(parsed)[0] as any[]);
       setQuestions([...questions, ...generated]);
     } catch (error) {
-      console.error("AI Error:", error);
-      alert("Failed to generate questions. Try again.");
+      console.error('AI Error:', error);
+      alert('Failed to generate questions. Try again.');
     } finally {
       setLoading(false);
     }
