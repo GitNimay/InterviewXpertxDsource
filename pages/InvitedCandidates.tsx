@@ -7,6 +7,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import { useMessageBox } from '../components/MessageBox';
 import { Interview, InterviewSubmission } from '../types';
 import { sendInterviewInvitations } from '../services/brevoService';
+import { evaluateResumeForMultipleJobs } from '../services/api';
 
 // Setup PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -36,7 +37,7 @@ const InvitedCandidates: React.FC = () => {
     const [selectedInterviewId, setSelectedInterviewId] = useState<string>('');
     const [parsingResumes, setParsingResumes] = useState(false);
     const [sendingEmails, setSendingEmails] = useState(false);
-    const [newCandidates, setNewCandidates] = useState<{email: string, phone: string}[]>([]);
+    const [newCandidates, setNewCandidates] = useState<{email: string, phone: string, scores?: Record<string, string>}[]>([]);
     const [manualEmail, setManualEmail] = useState('');
     const [manualPhone, setManualPhone] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -120,10 +121,12 @@ const InvitedCandidates: React.FC = () => {
         if (!files || files.length === 0) return;
 
         setParsingResumes(true);
-        const parsed: {email: string, phone: string}[] = [];
+        const parsed: {email: string, phone: string, scores?: Record<string, string>}[] = [];
         let filesProcessed = 0;
+        
+        const jobsPayload = interviews.map(i => ({ id: i.id, title: i.title, description: i.description }));
 
-        for (const file of Array.from(files)) {
+        const parsePromises = Array.from(files).map(async (file) => {
             let text = '';
             try {
                 if (file.type === 'application/pdf') {
@@ -137,7 +140,7 @@ const InvitedCandidates: React.FC = () => {
                 } else if (file.type === 'text/plain') {
                     text = await file.text();
                 } else {
-                    continue;
+                    return;
                 }
 
                 const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i);
@@ -147,14 +150,26 @@ const InvitedCandidates: React.FC = () => {
                     const email = emailMatch[1].toLowerCase();
                     const phone = phoneMatch ? phoneMatch[0] : 'N/A';
                     if (!parsed.some(c => c.email === email) && !newCandidates.some(c => c.email === email)) {
-                        parsed.push({ email, phone });
+                        let scores = {};
+                        if (text.length > 50 && jobsPayload.length > 0) {
+                            try {
+                                scores = await evaluateResumeForMultipleJobs(jobsPayload, text);
+                            } catch (e) {
+                                console.error('Multi job score error:', e);
+                            }
+                        }
+                        if (!parsed.some(c => c.email === email)) {
+                            parsed.push({ email, phone, scores });
+                        }
                     }
                 }
                 filesProcessed++;
             } catch (error) {
                 console.error(`Error parsing ${file.name}:`, error);
             }
-        }
+        });
+
+        await Promise.all(parsePromises);
 
         if (parsed.length > 0) {
             setNewCandidates(prev => [...prev, ...parsed]);
@@ -351,17 +366,38 @@ const InvitedCandidates: React.FC = () => {
                     {/* Deployment Zone */}
                     <div className="space-y-2 lg:pl-6">
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">Deploy Invites</label>
-                        <div className="bg-gray-50 dark:bg-black/50 rounded-xl p-3 max-h-[100px] overflow-y-auto border border-gray-200 dark:border-white/5 mb-3">
+                        <div className="bg-gray-50 dark:bg-black/50 rounded-xl p-3 max-h-[160px] overflow-y-auto border border-gray-200 dark:border-white/5 mb-3">
                             {newCandidates.length === 0 ? (
                                 <p className="text-xs text-center text-gray-400 italic py-2">Queue is empty.</p>
                             ) : (
                                 <div className="space-y-1">
-                                    {newCandidates.map(c => (
-                                        <div key={c.email} className="flex justify-between items-center text-xs bg-white dark:bg-gray-800 px-2 py-1.5 rounded border border-gray-100 dark:border-gray-700">
-                                            <span className="truncate max-w-[120px] font-medium" title={c.email}>{c.email}</span>
-                                            <button onClick={()=>handleRemoveCandidate(c.email)} className="text-red-500 hover:text-red-700 font-bold ml-2">&times;</button>
-                                        </div>
-                                    ))}
+                                    {newCandidates.map(c => {
+                                        let ScoreBadge = null;
+                                        if (selectedInterviewId && c.scores && c.scores[selectedInterviewId]) {
+                                            const numScore = parseFloat(c.scores[selectedInterviewId]);
+                                            let badgeColor = 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+                                            if (!isNaN(numScore)) {
+                                                if (numScore >= 75) badgeColor = 'bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-300 border border-green-200 dark:border-green-800/50';
+                                                else if (numScore >= 50) badgeColor = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/60 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800/50';
+                                                else badgeColor = 'bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-300 border border-red-200 dark:border-red-800/50';
+                                            }
+                                            ScoreBadge = (
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ml-2 ${badgeColor}`} title="AI Match for Selected Role">
+                                                    Match: {c.scores[selectedInterviewId]}%
+                                                </span>
+                                            );
+                                        }
+
+                                        return (
+                                            <div key={c.email} className="flex justify-between items-center text-xs bg-white dark:bg-gray-800 px-2 py-1.5 rounded border border-gray-100 dark:border-gray-700">
+                                                <div className="truncate flex items-center">
+                                                    <span className="truncate max-w-[100px]" title={c.email}>{c.email}</span>
+                                                    {ScoreBadge}
+                                                </div>
+                                                <button onClick={()=>handleRemoveCandidate(c.email)} className="text-red-500 hover:text-red-700 font-bold px-1">&times;</button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

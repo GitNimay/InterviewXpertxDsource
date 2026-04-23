@@ -216,17 +216,46 @@ export const evaluateResumeMatch = async (
   resumeText: string
 ): Promise<string> => {
   const jd = truncate(jobDescription, JD_MAX_CHARS);
-  const sys = `You are a strict HR recruiter. Calculate a Resume Match Score (0.0 to 10.0) based strictly on how well the candidate's resume aligns with the Job Description. Be highly critical.`;
-  const prompt = `Role: ${jobTitle}\nJD: ${jd}\n\nResume:\n${truncate(resumeText, RESUME_MAX_CHARS)}\n\nOutput ONLY a number between 0.0 and 10.0 representing the match score (e.g. 7.5). Do not output any other text.`;
+  const sys = `You are a strict HR recruiter. Calculate a Resume Match Percentage (0 to 100) based strictly on how well the candidate's resume aligns with the Job Description. Be highly critical.`;
+  const prompt = `Role: ${jobTitle}\nJD: ${jd}\n\nResume:\n${truncate(resumeText, RESUME_MAX_CHARS)}\n\nOutput ONLY an integer number between 0 and 100 representing the match percentage (e.g. 85). Do not output any other text or percentage signs.`;
 
   try {
     const result = await grokGenerateText(sys, prompt, 0.1, 10);
-    const score = parseFloat(result.trim());
+    const score = parseInt(result.trim(), 10);
     if (isNaN(score)) return "N/A";
-    return score.toFixed(1);
+    return score.toString();
   } catch (error: any) {
     console.error("Grok Resume Match Error:", error);
     return "N/A";
+  }
+};
+
+// ── Multi-Job Resume Match ───────────────────────────────────────────────────
+export const evaluateResumeForMultipleJobs = async (
+  jobs: { id: string; title: string; description: string }[],
+  resumeText: string
+): Promise<Record<string, string>> => {
+  if (jobs.length === 0) return {};
+
+  const jobsContext = jobs.map(j => `Job ID: ${j.id}\nTitle: ${j.title}\nJD: ${truncate(j.description, JD_MAX_CHARS / 2)}`).join('\n\n');
+  const sys = `You are a strict HR recruiter. Evaluate a candidate's resume against multiple job descriptions. Output ONLY a valid JSON object where keys are Job IDs and values are integer match percentages (0-100). Do NOT output markdown formatting like \`\`\`json.`;
+  const prompt = `Jobs:\n${jobsContext}\n\nResume:\n${truncate(resumeText, RESUME_MAX_CHARS)}\n\nOutput strictly JSON mapping Job ID to percentage match. Example: {"job123": 85, "job456": 40}`;
+
+  try {
+    const result = await grokGenerateText(sys, prompt, 0.1, 50 + jobs.length * 20);
+    // Remove any markdown block syntax if the AI mistakenly includes it
+    const cleanResult = result.replace(/```json/g, '').replace(/```/g, '').trim();
+    const scores = JSON.parse(cleanResult);
+    
+    // Ensure it's a record of strings
+    const formattedScores: Record<string, string> = {};
+    for (const [key, val] of Object.entries(scores)) {
+        formattedScores[key] = String(val);
+    }
+    return formattedScores;
+  } catch (error: any) {
+    console.error("Grok Multi-Job Resume Match Error:", error);
+    return {};
   }
 };
 

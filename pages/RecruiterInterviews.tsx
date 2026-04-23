@@ -359,10 +359,10 @@ const RecruiterInterviews: React.FC = () => {
                                         let icon = 'fas fa-minus-circle';
                                         
                                         if (!isNaN(numScore)) {
-                                            if (numScore >= 7.5) {
+                                            if (numScore >= 75) {
                                                 badgeColor = 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border shadow-sm border-green-200 dark:border-green-800';
                                                 icon = 'fas fa-check-circle';
-                                            } else if (numScore >= 5.0) {
+                                            } else if (numScore >= 50) {
                                                 badgeColor = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border shadow-sm border-yellow-200 dark:border-yellow-800';
                                                 icon = 'fas fa-exclamation-circle';
                                             } else {
@@ -373,7 +373,7 @@ const RecruiterInterviews: React.FC = () => {
                                         
                                         ScoreBadge = (
                                             <div className={`mt-1 flex w-fit items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold ${badgeColor}`} title="AI Resume Match Score vs Job Description">
-                                                <i className={icon}></i> Match: {parsedData.matchScore}/10
+                                                <i className={icon}></i> Match: {parsedData.matchScore}%
                                             </div>
                                         );
                                     }

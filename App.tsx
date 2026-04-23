@@ -46,6 +46,7 @@ import AvailableJobs from './pages/AvailableJobs';
 import SubmitReview from './pages/SubmitReview';
 import ReviewsPage from './pages/Reviews';
 import OurJourney from './pages/OurJourney';
+import InvitedCandidates from './pages/InvitedCandidates';
 import CareerHub from './pages/CareerHub';
 import StatusPage from './pages/Status';
 
@@ -194,6 +195,7 @@ const App: React.FC = () => {
                   {/* Recruiter Routes */}
                   <Route path="recruiter/jobs" element={<ProtectedRoute role="recruiter"><RecruiterDashboard /></ProtectedRoute>} />
                   <Route path="recruiter/interviews" element={<ProtectedRoute role="recruiter"><RecruiterInterviews /></ProtectedRoute>} />
+                  <Route path="recruiter/invites" element={<ProtectedRoute role="recruiter"><InvitedCandidates /></ProtectedRoute>} />
                   <Route path="recruiter/interview/responses/:interviewId" element={<ProtectedRoute role="recruiter"><InterviewResponses /></ProtectedRoute>} />
                   <Route path="recruiter/job/:jobId/candidates" element={<ProtectedRoute role="recruiter"><JobCandidates /></ProtectedRoute>} />
                   <Route path="recruiter/post" element={<ProtectedRoute role="recruiter"><PostJob /></ProtectedRoute>} />
