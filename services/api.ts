@@ -1,4 +1,4 @@
-import { grokGenerateWithResume, BUDGET } from "./grokService";
+import { grokGenerateWithResume, grokGenerateText, BUDGET } from "./grokService";
 
 // Config Constants (loaded from environment variables)
 const ASSEMBLYAI_API_KEY = import.meta.env.VITE_ASSEMBLYAI_API_KEY;
@@ -206,6 +206,27 @@ Q&A Score: [SCORE]/100
   } catch (error: any) {
     console.error("Grok Feedback Error:", error);
     throw new Error(error.message);
+  }
+};
+
+// ── Invite Resume Match ────────────────────────────────────────────────────────
+export const evaluateResumeMatch = async (
+  jobTitle: string,
+  jobDescription: string,
+  resumeText: string
+): Promise<string> => {
+  const jd = truncate(jobDescription, JD_MAX_CHARS);
+  const sys = `You are a strict HR recruiter. Calculate a Resume Match Score (0.0 to 10.0) based strictly on how well the candidate's resume aligns with the Job Description. Be highly critical.`;
+  const prompt = `Role: ${jobTitle}\nJD: ${jd}\n\nResume:\n${truncate(resumeText, RESUME_MAX_CHARS)}\n\nOutput ONLY a number between 0.0 and 10.0 representing the match score (e.g. 7.5). Do not output any other text.`;
+
+  try {
+    const result = await grokGenerateText(sys, prompt, 0.1, 10);
+    const score = parseFloat(result.trim());
+    if (isNaN(score)) return "N/A";
+    return score.toFixed(1);
+  } catch (error: any) {
+    console.error("Grok Resume Match Error:", error);
+    return "N/A";
   }
 };
 

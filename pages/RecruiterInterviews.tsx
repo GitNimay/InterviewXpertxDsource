@@ -10,6 +10,8 @@ import { createPortal } from 'react-dom';
 import { sendInterviewInvitations } from '../services/brevoService';
 import EditJobModal from './EditJob';
 
+import { evaluateResumeMatch } from '../services/api';
+
 // Setup PDF.js worker to enable PDF parsing
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -22,7 +24,7 @@ const RecruiterInterviews: React.FC = () => {
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [newEmail, setNewEmail] = useState('');
   const [newEmails, setNewEmails] = useState<string[]>([]);
-  const [parsedCandidates, setParsedCandidates] = useState<{email: string, phone: string}[]>([]);
+  const [parsedCandidates, setParsedCandidates] = useState<{email: string, phone: string, matchScore?: string}[]>([]);
   const [submissionsMap, setSubmissionsMap] = useState<Record<string, any[]>>({});
   const [parsingResumes, setParsingResumes] = useState(false);
   const [sendingEmails, setSendingEmails] = useState(false);
@@ -96,11 +98,11 @@ const RecruiterInterviews: React.FC = () => {
     if (!files || files.length === 0) return;
 
     setParsingResumes(true);
-    const newCandidatesFound: {email: string, phone: string}[] = [];
+    const newCandidatesFound: {email: string, phone: string, matchScore?: string}[] = [];
     let filesProcessed = 0;
     let filesWithErrors = 0;
 
-    for (const file of Array.from(files)) {
+    const parsePromises = Array.from(files).map(async (file) => {
       let text = '';
       try {
         if (file.type === 'application/pdf') {
@@ -114,7 +116,7 @@ const RecruiterInterviews: React.FC = () => {
         } else if (file.type === 'text/plain') {
           text = await file.text();
         } else {
-          continue; // Skip unsupported file types
+          return; // Skip unsupported file types
         }
 
         const emailMatch = text.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/i);
@@ -124,8 +126,24 @@ const RecruiterInterviews: React.FC = () => {
             const lowerEmail = emailMatch[1].toLowerCase();
             const phone = phoneMatch ? phoneMatch[0] : 'N/A';
             
-            if (!(selectedInterview?.candidateEmails || []).includes(lowerEmail) && !newEmails.includes(lowerEmail) && !newCandidatesFound.some(c => c.email === lowerEmail)) {
-                newCandidatesFound.push({ email: lowerEmail, phone });
+            // Check if not already invited/added
+            // We use functional updates later, but for the map function, we check against the current state array.
+            if (!(selectedInterview?.candidateEmails || []).includes(lowerEmail) && !newEmails.includes(lowerEmail)) {
+                
+                // Fetch AI match score
+                let matchScore = "N/A";
+                if (selectedInterview && text.length > 50) {
+                    try {
+                        matchScore = await evaluateResumeMatch(selectedInterview.title, selectedInterview.description, text);
+                    } catch (e) {
+                        console.error('Match score error:', e);
+                    }
+                }
+                
+                // Ensure thread-safety for pushing to array
+                if (!newCandidatesFound.some(c => c.email === lowerEmail)) {
+                    newCandidatesFound.push({ email: lowerEmail, phone, matchScore });
+                }
             }
         }
         filesProcessed++;
@@ -133,7 +151,9 @@ const RecruiterInterviews: React.FC = () => {
         console.error(`Error parsing ${file.name}:`, error);
         filesWithErrors++;
       }
-    }
+    });
+
+    await Promise.all(parsePromises);
 
     if (newCandidatesFound.length > 0) {
         setNewEmails(prev => [...prev, ...newCandidatesFound.map(c => c.email)]);
@@ -331,15 +351,43 @@ const RecruiterInterviews: React.FC = () => {
                             <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto">
                                 {newEmails.map(email => {
                                     const parsedData = parsedCandidates.find(c => c.email === email);
-                                    return (
-                                        <div key={email} className="flex items-center justify-between text-sm bg-gray-200 dark:bg-gray-700 border border-transparent dark:border-gray-600 rounded-lg px-3 py-2">
-                                            <div className="flex flex-col">
-                                                <span className="font-medium">{email}</span>
-                                                {parsedData?.phone && parsedData.phone !== 'N/A' && (
-                                                    <span className="text-xs text-blue-600 dark:text-blue-400 font-mono"><i className="fas fa-phone-alt mr-1"></i>{parsedData.phone}</span>
-                                                )}
+                                    
+                                    let ScoreBadge = null;
+                                    if (parsedData?.matchScore && parsedData.matchScore !== 'N/A') {
+                                        const numScore = parseFloat(parsedData.matchScore);
+                                        let badgeColor = 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+                                        let icon = 'fas fa-minus-circle';
+                                        
+                                        if (!isNaN(numScore)) {
+                                            if (numScore >= 7.5) {
+                                                badgeColor = 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border shadow-sm border-green-200 dark:border-green-800';
+                                                icon = 'fas fa-check-circle';
+                                            } else if (numScore >= 5.0) {
+                                                badgeColor = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border shadow-sm border-yellow-200 dark:border-yellow-800';
+                                                icon = 'fas fa-exclamation-circle';
+                                            } else {
+                                                badgeColor = 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border shadow-sm border-red-200 dark:border-red-800';
+                                                icon = 'fas fa-times-circle';
+                                            }
+                                        }
+                                        
+                                        ScoreBadge = (
+                                            <div className={`mt-1 flex w-fit items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold ${badgeColor}`} title="AI Resume Match Score vs Job Description">
+                                                <i className={icon}></i> Match: {parsedData.matchScore}/10
                                             </div>
-                                            <button onClick={() => handleRemoveNewEmail(email)} className="text-gray-400 hover:text-red-500 transition-colors p-1" title="Remove Candidate">
+                                        );
+                                    }
+
+                                    return (
+                                        <div key={email} className="flex items-start justify-between text-sm bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 shadow-sm transition-colors hover:border-gray-300 dark:hover:border-gray-500">
+                                            <div className="flex flex-col">
+                                                <span className="font-semibold text-gray-900 dark:text-white mb-0.5">{email}</span>
+                                                {parsedData?.phone && parsedData.phone !== 'N/A' && (
+                                                    <span className="text-xs text-blue-600 dark:text-blue-400 font-mono flex items-center gap-1.5"><i className="fas fa-phone-alt"></i>{parsedData.phone}</span>
+                                                )}
+                                                {ScoreBadge}
+                                            </div>
+                                            <button onClick={() => handleRemoveNewEmail(email)} className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700" title="Remove Candidate">
                                                 <i className="fas fa-trash-alt"></i>
                                             </button>
                                         </div>
