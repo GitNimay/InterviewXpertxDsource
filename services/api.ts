@@ -157,17 +157,17 @@ Based on the Job Description, the candidate's resume (provided in context), and 
 
 **1. Resume Analysis:**
    - Compare the resume against the JD for required skills, experience, and qualifications.
-   - Identify 2-3 key strengths (e.g., specific project experience that matches).
-   - Identify 2-3 key weaknesses or missing qualifications.
-   - Provide a detailed paragraph explaining your reasoning.
+   - **Output:** Provide a concise summary as 3-4 bullet points. Use a '-' for each bullet.
+   - Focus on quantifiable matches (e.g., "- Resume shows 5/7 required skills") and critical gaps.
 
 **2. Answer Quality Analysis:**
    - Evaluate each answer for technical accuracy, clarity, and relevance to the question.
-   - Mention which answers were strong and which were weak, with brief justifications.
-   - Provide a detailed paragraph summarizing their communication and problem-solving skills.
+   - **Output:** Provide a concise summary as 3-4 bullet points. Use a '-' for each bullet.
+   - Highlight the strongest and weakest answers with brief justification (e.g., "- Answer to Q2 was strong and detailed.").
+   - Comment on overall communication style (e.g., "- Communication was confident and clear.").
 
 **3. Overall Evaluation & Verdict:**
-   - Write a concise executive summary (2-3 sentences).
+   - Write a concise executive summary (1-2 sentences).
    - Provide a final hiring verdict from: "Strong Hire", "Hire", "Leaning No", "No Hire".
 
 **4. Scoring (MANDATORY):**
@@ -180,13 +180,17 @@ Based on the Job Description, the candidate's resume (provided in context), and 
 ### OUTPUT FORMAT (Strictly follow this structure)
 
 **Resume Analysis:**
-[Your detailed analysis of the resume vs. the JD, including strengths and weaknesses.]
+- [Bullet point analysis of resume vs JD]
+- [Identify a key strength]
+- [Identify a key weakness or gap]
 
 **Answer Quality:**
-[Your detailed analysis of the candidate's answers and communication skills.]
+- [Bullet point analysis of answer quality]
+- [Comment on strongest/weakest answer]
+- [Overall communication style assessment]
 
 **Overall Evaluation:**
-[Your 2-3 sentence executive summary.]
+[Your 1-2 sentence executive summary.]
 
 **Verdict:** [Strong Hire | Hire | Leaning No | No Hire]
 

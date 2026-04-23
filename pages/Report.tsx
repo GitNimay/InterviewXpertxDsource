@@ -55,25 +55,19 @@ const InterviewReport: React.FC = () => {
   }, [interviewId, submissionId]);
 
   const getScoreValue = (score: unknown): string => {
+    let value = 0;
     if (typeof score === 'string' && score.includes('/')) {
-      const value = parseInt(score.split('/')[0], 10);
-      return isNaN(value) ? '0' : String(value);
+      value = parseInt(score.split('/')[0], 10);
+    } else if (typeof score === 'number') {
+      value = Math.round(score);
     }
-    if (typeof score === 'number') {
-      return String(Math.round(score));
-    }
-    return '0';
+    // Convert score out of 100 to score out of 10
+    return (value / 10).toFixed(1); // Ensure one decimal place
   };
 
   const getScoreDenom = (score: unknown): string => {
-    if (typeof score === 'string' && score.includes('/')) {
-      const denom = parseInt(score.split('/')[1], 10);
-      return isNaN(denom) ? '100' : String(denom); // Default to 100 if invalid
-    }
-    if (typeof score === 'number') {
-      return '100'; // Assuming numerical scores are out of 100
-    }
-    return '100'; // Default denominator
+    // The new denominator should always be 10
+    return '10';
   };
 
   const scoreColor = (score: number, denom?: string) => {
@@ -104,256 +98,225 @@ const InterviewReport: React.FC = () => {
   };
 
   const handleDownloadPDF = () => {
-    if (!submission) {
-      messageBox.showError("No report data found to download.");
-      return;
-    }
-
+    if (!submission) return messageBox.showError("No report data found to download.");
     messageBox.showInfo("Generating PDF... Please wait.");
 
     try {
-      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const margin = 15;
-      const contentW = pageW - margin * 2;
-      let y = 0;
+        const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const margin = 15;
+        const contentW = pageW - margin * 2;
+        let y = margin;
 
-      // ── helpers ──────────────────────────────────────────────────────────────
-      const checkPage = (needed: number) => {
-        if (y + needed > pageH - margin) { pdf.addPage(); y = margin; }
-      };
+        const checkPage = (needed: number) => {
+            if (y + needed > pageH - margin) { pdf.addPage(); y = margin; }
+        };
 
+        const drawSectionHeader = (text: string) => {
+            checkPage(12);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(12);
+            pdf.setTextColor(15, 23, 42);
+            pdf.text(text, margin, y);
+            y += 5;
+            pdf.setDrawColor(226, 232, 240);
+            pdf.setLineWidth(0.2);
+            pdf.line(margin, y, margin + contentW, y);
+            y += 8;
+        };
 
+        const drawInfoBox = (label: string, value: string, x: number, boxY: number, boxW: number) => {
+            pdf.setFillColor(248, 250, 252);
+            pdf.roundedRect(x, boxY, boxW, 16, 2, 2, 'F');
+            pdf.setFontSize(8);
+            pdf.setTextColor(100, 116, 139);
+            pdf.text(label, x + 4, boxY + 6);
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(15, 23, 42);
+            pdf.text(value, x + 4, boxY + 12);
+        };
 
-
-      // ── HEADER BANNER ────────────────────────────────────────────────────────
-      pdf.setFillColor(37, 99, 235); // blue-600
-      pdf.rect(0, 0, pageW, 32, 'F');
-
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(20);
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('InterviewXpert', margin, 13);
-
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('AI-Powered Interview Report', margin, 21);
-
-      const dateStr = submission.submittedAt?.toDate
-        ? submission.submittedAt.toDate().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-        : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-      pdf.text(dateStr, pageW - margin - pdf.getTextWidth(dateStr), 21);
-      y = 40;
-
-      // ── CANDIDATE INFO ───────────────────────────────────────────────────────
-      pdf.setFillColor(239, 246, 255); // blue-50
-      pdf.roundedRect(margin, y, contentW, 28, 3, 3, 'F');
-      pdf.setDrawColor(191, 219, 254); // blue-200
-      pdf.roundedRect(margin, y, contentW, 28, 3, 3, 'S');
-
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(15);
-      pdf.setTextColor(30, 58, 138); // blue-900
-      const candName = submission.candidateInfo?.name || 'Candidate';
-      pdf.text(`${candName}'s Interview Report`, margin + 5, y + 10);
-
-      pdf.setFont('helvetica', 'normal');
-      pdf.setFontSize(9);
-      pdf.setTextColor(71, 85, 105); // slate-600
-      pdf.text(`Email: ${submission.candidateInfo?.email || 'N/A'}`, margin + 5, y + 18);
-      pdf.text(`Date: ${dateStr}`, margin + contentW / 2, y + 18);
-      y += 34;
-
-      // ── SCORE CARDS ──────────────────────────────────────────────────────────
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(11);
-      pdf.setTextColor(15, 23, 42); // slate-950
-      pdf.text('Performance Scores', margin, y);
-      y += 6;
-
-      const cardW = (contentW - 8) / 3;
-      const scores = [
-        { label: 'Resume Score', value: getScoreValue(submission.resumeScore), denom: getScoreDenom(submission.resumeScore), color: [59, 130, 246] as [number,number,number] },
-        { label: 'Q&A Score',    value: getScoreValue(submission.qnaScore),    denom: getScoreDenom(submission.qnaScore),    color: [168, 85, 247] as [number,number,number] },
-        { label: 'Overall Score',value: getScoreValue(submission.score),       denom: getScoreDenom(submission.score),       color: [16, 185, 129] as [number,number,number] },
-      ];
-
-      scores.forEach((s, i) => {
-        const cx = margin + i * (cardW + 4);
-        pdf.setFillColor(248, 250, 252);
-        pdf.roundedRect(cx, y, cardW, 22, 2, 2, 'F');
-        pdf.setDrawColor(226, 232, 240);
-        pdf.roundedRect(cx, y, cardW, 22, 2, 2, 'S');
-
-        pdf.setFillColor(...s.color);
-        pdf.roundedRect(cx + cardW - 8, y + 3, 5, 5, 1, 1, 'F');
-
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(8);
-        pdf.setTextColor(100, 116, 139);
-        pdf.text(s.label, cx + 4, y + 8);
-
+        // 1. HEADER
+        pdf.setFillColor(37, 99, 235);
+        pdf.rect(0, 0, pageW, 30, 'F');
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(18);
-        pdf.setTextColor(...s.color);
-        pdf.text(`${s.value}`, cx + 4, y + 18);
-        pdf.setFontSize(10);
-        pdf.setTextColor(148, 163, 184);
-        pdf.text(`/${s.denom}`, cx + 4 + pdf.getTextWidth(`${s.value}`) + 1, y + 18);
-      });
-      y += 28;
+        pdf.setTextColor(255, 255, 255);
+        pdf.text('InterviewXpert Report', margin, 18);
+        y = 40;
 
-      // ── BEHAVIORAL METRICS ───────────────────────────────────────────────────
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(11);
-      pdf.setTextColor(15, 23, 42);
-      pdf.text('Behavioral Analysis', margin, y);
-      y += 6;
-
-      pdf.setFillColor(248, 250, 252);
-      pdf.roundedRect(margin, y, contentW, 22, 2, 2, 'F');
-      pdf.setDrawColor(226, 232, 240);
-      pdf.roundedRect(margin, y, contentW, 22, 2, 2, 'S');
-
-      const bMetrics = [
-        { label: 'Eye Contact',     value: `${submission.meta?.cvStats?.eyeContactScore ?? 'N/A'}%` },
-        { label: 'Confidence',      value: `${submission.meta?.cvStats?.confidenceScore ?? 'N/A'}%` },
-        { label: 'Tab Switches',    value: `${submission.meta?.tabSwitchCount ?? 0}` },
-        { label: 'Faces Detected',  value: `${submission.meta?.cvStats?.facesDetected ?? 'N/A'}` },
-      ];
-      const bColW = contentW / 4;
-      bMetrics.forEach((m, i) => {
-        const bx = margin + i * bColW + 4;
+        // 2. CANDIDATE & JOB INFO
+        const candName = submission.candidateInfo?.name || 'Candidate';
+        const jobTitle = submission.jobTitle || 'Interview';
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(22);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(candName, margin, y);
+        y += 8;
         pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(8);
+        pdf.setFontSize(12);
         pdf.setTextColor(100, 116, 139);
-        pdf.text(m.label, bx, y + 9);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(13);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text(m.value, bx, y + 18);
-      });
-      y += 28;
-
-      // ── AI FEEDBACK ──────────────────────────────────────────────────────────
-      const { resumeAnalysis, answerQuality, overallEvaluation } = parseFeedback(submission.feedback);
-
-      const sections = [
-        { title: 'Resume Match Analysis', body: resumeAnalysis,       bg: [239, 246, 255] as [number,number,number], border: [191, 219, 254] as [number,number,number], titleColor: [30, 58, 138] as [number,number,number] },
-        { title: 'Answer Quality Analysis', body: answerQuality,      bg: [245, 243, 255] as [number,number,number], border: [221, 214, 254] as [number,number,number], titleColor: [88, 28, 135]  as [number,number,number] },
-        { title: 'Executive Summary',      body: overallEvaluation,   bg: [240, 253, 244] as [number,number,number], border: [187, 247, 208] as [number,number,number], titleColor: [20, 83, 45]   as [number,number,number] },
-      ];
-
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(11);
-      pdf.setTextColor(15, 23, 42);
-      pdf.text('AI Evaluation', margin, y);
-      y += 6;
-
-      sections.forEach((sec) => {
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(9);
-        const bodyLines = pdf.splitTextToSize(sec.body || 'N/A', contentW - 12);
-        const boxH = 8 + bodyLines.length * 5 + 4;
-        checkPage(boxH + 4);
-
-        pdf.setFillColor(...sec.bg);
-        pdf.roundedRect(margin, y, contentW, boxH, 2, 2, 'F');
-        pdf.setDrawColor(...sec.border);
-        pdf.roundedRect(margin, y, contentW, boxH, 2, 2, 'S');
-
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(9);
-        pdf.setTextColor(...sec.titleColor);
-        pdf.text(sec.title, margin + 5, y + 6);
-
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(51, 65, 85);
-        let textY = y + 11;
-        bodyLines.forEach((line: string) => {
-          pdf.text(line, margin + 5, textY);
-          textY += 5;
-        });
-        y += boxH + 5;
-      });
-
-      // ── Q&A TRANSCRIPTS ──────────────────────────────────────────────────────
-      if (submission.questions && submission.questions.length > 0) {
-        checkPage(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(11);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text('Question & Answer Transcripts', margin, y);
+        pdf.text(`Applying for: ${jobTitle}`, margin, y);
         y += 6;
+        const dateStr = submission.submittedAt?.toDate ? submission.submittedAt.toDate().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+        pdf.setFontSize(10);
+        pdf.text(`Date: ${dateStr} | Email: ${submission.candidateInfo?.email || 'N/A'}`, margin, y);
+        y += 15;
 
-        submission.questions.forEach((q, idx) => {
-          const transcript = submission.transcriptTexts?.[idx] || 'Transcript not available.';
-          const qLines   = pdf.splitTextToSize(`Q${idx + 1}: ${q}`, contentW - 12);
-          const tLines   = pdf.splitTextToSize(transcript, contentW - 12);
-          const blockH   = 6 + qLines.length * 5 + 4 + tLines.length * 4.5 + 6;
-          checkPage(blockH + 4);
+        // 3. VERDICT & SCORES
+        checkPage(35);
+        const { verdict, resumeAnalysis, answerQuality, overallEvaluation } = parseFeedback(submission.feedback);
+        const vColor = verdictColor(verdict);
+        const verdictBg = vColor.bg.includes('green') ? [236, 253, 245] : vColor.bg.includes('yellow') ? [254, 252, 232] : vColor.bg.includes('red') ? [254, 242, 242] : [241, 245, 249];
+        const verdictBorder = vColor.border.includes('green') ? [167, 243, 208] : vColor.border.includes('yellow') ? [252, 211, 77] : vColor.border.includes('red') ? [252, 165, 165] : [226, 232, 240];
+        const verdictText = vColor.text.includes('green') ? [21, 128, 61] : vColor.text.includes('yellow') ? [180, 83, 9] : vColor.text.includes('red') ? [185, 28, 28] : [55, 65, 81];
+        
+        pdf.setFillColor(...verdictBg);
+        pdf.setDrawColor(...verdictBorder);
+        pdf.setLineWidth(0.5);
+        pdf.roundedRect(margin, y, contentW, 20, 3, 3, 'FD');
+        pdf.setFontSize(8);
+        pdf.setTextColor(verdictText[0], verdictText[1], verdictText[2]);
+        pdf.text('HIRING VERDICT', pageW / 2, y + 7, { align: 'center' });
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(verdict.toUpperCase(), pageW / 2, y + 15, { align: 'center' });
+        y += 28;
 
-          pdf.setFillColor(248, 250, 252);
-          pdf.roundedRect(margin, y, contentW, blockH, 2, 2, 'F');
-          pdf.setDrawColor(226, 232, 240);
-          pdf.roundedRect(margin, y, contentW, blockH, 2, 2, 'S');
-
-          // Q badge
-          pdf.setFillColor(37, 99, 235);
-          pdf.roundedRect(margin + 4, y + 4, 14, 6, 1, 1, 'F');
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(7);
-          pdf.setTextColor(255, 255, 255);
-          pdf.text(`Q${idx + 1}`, margin + 6, y + 8.5);
-
-          // Question text
-          pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(9);
-          pdf.setTextColor(15, 23, 42);
-          let qy = y + 6;
-          qLines.forEach((line: string) => {
-            pdf.text(line, margin + 22, qy);
-            qy += 5;
-          });
-
-          // Transcript label
-          const tStartY = qy + 2;
-          pdf.setFont('helvetica', 'normal');
-          pdf.setFontSize(8);
-          pdf.setTextColor(100, 116, 139);
-          pdf.text('Transcript:', margin + 5, tStartY);
-
-          // Transcript body
-          pdf.setTextColor(51, 65, 85);
-          let ty = tStartY + 4.5;
-          tLines.forEach((line: string) => {
-            pdf.text(line, margin + 5, ty);
-            ty += 4.5;
-          });
-          y += blockH + 5;
+        const scores = [
+            { label: 'Overall Score', value: getScoreValue(submission.score), denom: getScoreDenom(submission.score) },
+            { label: 'Resume Match',  value: getScoreValue(submission.resumeScore), denom: getScoreDenom(submission.resumeScore) },
+            { label: 'Q&A Score',     value: getScoreValue(submission.qnaScore),    denom: getScoreDenom(submission.qnaScore) },
+        ];
+        const cardW = (contentW - 8) / 3;
+        scores.forEach((s, i) => {
+            drawInfoBox(s.label, `${s.value}/${s.denom}`, margin + i * (cardW + 4), y, cardW);
         });
-      }
+        y += 24;
 
-      // ── FOOTER ───────────────────────────────────────────────────────────────
-      const totalPages = (pdf as any).internal.getNumberOfPages();
-      for (let pg = 1; pg <= totalPages; pg++) {
-        pdf.setPage(pg);
-        pdf.setFillColor(248, 250, 252);
-        pdf.rect(0, pageH - 10, pageW, 10, 'F');
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(7);
-        pdf.setTextColor(148, 163, 184);
-        pdf.text('Generated by InterviewXpert | AI-Powered Hiring Platform', margin, pageH - 3.5);
-        pdf.text(`Page ${pg} of ${totalPages}`, pageW - margin - 18, pageH - 3.5);
-      }
+        // 4. CANDIDATE PROFILE DETAILS
+        if (submission.candidateInfo) {
+            drawSectionHeader("Candidate Profile");
+            const info = submission.candidateInfo;
+            const col1X = margin;
+            const col2X = margin + contentW / 2 + 4;
+            const colW = contentW / 2 - 4;
+            
+            let profileDetails = [];
+            profileDetails.push({ label: 'Experience Level', value: info.experienceType });
+            if (info.experienceType === 'experienced') {
+                profileDetails.push({ label: 'Total Experience', value: `${info.totalExperienceYears}y ${info.totalExperienceMonths}m` });
+                profileDetails.push({ label: 'Work Status', value: info.workStatus?.replace('_', ' ') });
+                profileDetails.push({ label: info.workStatus === 'working' ? 'Current Company' : 'Last Company', value: info.workStatus === 'working' ? info.currentCompany : info.pastCompany });
+                profileDetails.push({ label: 'Current Salary', value: `${info.currentSalary} LPA` });
+                profileDetails.push({ label: 'Expected Salary', value: `${info.expectedSalary} LPA` });
+                profileDetails.push({ label: 'Has Salary Proof', value: info.hasSalaryProof });
+            } else { // Fresher
+                profileDetails.push({ label: 'Graduation Year', value: info.graduationYear });
+                profileDetails.push({ label: 'College', value: info.collegeName });
+                profileDetails.push({ label: 'Degree', value: `${info.degree} in ${info.specialization}` });
+            }
+            profileDetails.push({ label: 'Current Location', value: info.currentLocation });
+            profileDetails.push({ label: 'Ready to Relocate', value: info.readyToRelocate });
 
-      pdf.save(`InterviewReport_${candName.replace(/\s/g, '_')}.pdf`);
-      messageBox.showSuccess("Report downloaded successfully!");
+            for (let i = 0; i < profileDetails.length; i++) {
+                checkPage(20);
+                const xPos = i % 2 === 0 ? col1X : col2X;
+                drawInfoBox(profileDetails[i].label, profileDetails[i].value || 'N/A', xPos, y, colW);
+                if (i % 2 !== 0 || i === profileDetails.length - 1) {
+                    y += 20;
+                }
+            }
+            y += 4;
+        }
 
+        // 5. AI EVALUATION
+        drawSectionHeader("AI Evaluation");
+        const aiSections = [
+            { title: 'Resume Match Analysis', body: resumeAnalysis },
+            { title: 'Answer Quality Analysis', body: answerQuality },
+            { title: 'Executive Summary', body: overallEvaluation },
+        ];
+
+        aiSections.forEach(sec => {
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(10);
+            pdf.setTextColor(55, 65, 81);
+            checkPage(10);
+            pdf.text(sec.title, margin, y);
+            y += 6;
+
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(9);
+            pdf.setTextColor(82, 82, 91);
+            const bodyLines = pdf.splitTextToSize(sec.body || 'N/A', contentW);
+            checkPage(bodyLines.length * 5 + 8);
+            pdf.text(bodyLines, margin, y);
+            y += bodyLines.length * 5 + 8;
+        });
+
+        // 6. BEHAVIORAL ANALYSIS
+        if (submission.meta?.cvStats) {
+            drawSectionHeader("Behavioral Analysis");
+            const bMetrics = [
+                { label: 'Eye Contact', value: `${submission.meta.cvStats.eyeContactScore ?? 'N/A'}%` },
+                { label: 'Confidence', value: `${submission.meta.cvStats.confidenceScore ?? 'N/A'}%` },
+                { label: 'Tab Switches', value: `${submission.meta.tabSwitchCount ?? 0}` },
+                { label: 'Faces Detected', value: `${submission.meta.cvStats.facesDetected ?? 'N/A'}` },
+            ];
+            const bCardW = (contentW - 12) / 4;
+            bMetrics.forEach((m, i) => {
+                drawInfoBox(m.label, m.value, margin + i * (bCardW + 4), y, bCardW);
+            });
+            y += 24;
+        }
+
+        // 7. Q&A TRANSCRIPTS
+        if (submission.questions && submission.questions.length > 0) {
+            drawSectionHeader("Interview Transcript");
+            submission.questions.forEach((q, idx) => {
+                const transcript = submission.transcriptTexts?.[idx] || 'Transcript not available.';
+                const qLines = pdf.splitTextToSize(`Q${idx + 1}: ${q}`, contentW);
+                const tLines = pdf.splitTextToSize(transcript, contentW - 10);
+                const blockH = 6 + qLines.length * 5 + 4 + tLines.length * 4.5 + 6;
+                checkPage(blockH + 4);
+
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(10);
+                pdf.setTextColor(15, 23, 42);
+                pdf.text(qLines, margin, y);
+                y += qLines.length * 5 + 4;
+
+                pdf.setFillColor(248, 250, 252);
+                pdf.roundedRect(margin, y, contentW, tLines.length * 4.5 + 8, 2, 2, 'F');
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(9);
+                pdf.setTextColor(82, 82, 91);
+                pdf.text(tLines, margin + 4, y + 6);
+                y += tLines.length * 4.5 + 8 + 8;
+            });
+        }
+
+        // 8. FOOTER
+        const totalPages = (pdf as any).internal.getNumberOfPages();
+        for (let pg = 1; pg <= totalPages; pg++) {
+            pdf.setPage(pg);
+            pdf.setDrawColor(226, 232, 240);
+            pdf.line(margin, pageH - 12, pageW - margin, pageH - 12);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(8);
+            pdf.setTextColor(148, 163, 184);
+            pdf.text('Generated by InterviewXpert', margin, pageH - 7);
+            pdf.text(`Page ${pg} of ${totalPages}`, pageW - margin, pageH - 7, { align: 'right' });
+        }
+
+        pdf.save(`InterviewReport_${candName.replace(/\s/g, '_')}.pdf`);
+        messageBox.showSuccess("Report downloaded successfully!");
     } catch (error) {
-      console.error("PDF generation failed", error);
-      messageBox.showError("Could not generate PDF. Please try again.");
+        console.error("PDF generation failed", error);
+        messageBox.showError("Could not generate PDF. Please try again.");
     }
   };
 
@@ -406,6 +369,9 @@ const InterviewReport: React.FC = () => {
                     <button onClick={handleShare} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-gray-500 dark:text-gray-400" title="Copy Link">
                         <Share2 size={18} />
                     </button>
+                    <button onClick={handleDownloadPDF} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+                        <Download size={16} /> Download PDF
+                    </button>
                 </div>
             </div>
         </div>
@@ -451,6 +417,104 @@ const InterviewReport: React.FC = () => {
                     {verdict}
                 </p>
             </div>
+
+            {/* Candidate Profile Details */}
+            {submission.candidateInfo && (
+                <div className="bg-white dark:bg-white/5 rounded-2xl p-6 border border-gray-200 dark:border-white/10 shadow-sm">
+                    <h2 className="text-lg font-bold mb-6 flex items-center gap-2"><User size={20} className="text-primary"/> Candidate Profile Details</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+                        {/* Experience Type */}
+                        <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Experience Level</p>
+                            <p className="font-semibold text-gray-800 dark:text-gray-200 text-base capitalize">{submission.candidateInfo.experienceType}</p>
+                        </div>
+
+                        {/* Total Experience */}
+                        {submission.candidateInfo.experienceType === 'experienced' && (
+                            <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Experience</p>
+                                <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">
+                                    {submission.candidateInfo.totalExperienceYears} years, {submission.candidateInfo.totalExperienceMonths} months
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Education Details (for Freshers) */}
+                        {submission.candidateInfo.experienceType === 'fresher' && (
+                            <>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Graduation Year</p>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">{submission.candidateInfo.graduationYear}</p>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5 col-span-1 lg:col-span-2">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">College</p>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">{submission.candidateInfo.collegeName}</p>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Degree</p>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">{submission.candidateInfo.degree}</p>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5 col-span-1 lg:col-span-2">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Specialization</p>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">{submission.candidateInfo.specialization}</p>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Work Status (for Experienced) */}
+                        {submission.candidateInfo.experienceType === 'experienced' && (
+                            <>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Work Status</p>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-base capitalize">{submission.candidateInfo.workStatus?.replace('_', ' ')}</p>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5 col-span-1 lg:col-span-2">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
+                                        {submission.candidateInfo.workStatus === 'working' ? 'Current Company' : 'Last Company'}
+                                    </p>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">
+                                        {submission.candidateInfo.workStatus === 'working' ? submission.candidateInfo.currentCompany : submission.candidateInfo.pastCompany}
+                                    </p>
+                                </div>
+                            </>
+                        )}
+
+                        {/* Location & Relocation */}
+                        {submission.candidateInfo.currentLocation && (
+                            <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Current Location</p>
+                                <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">{submission.candidateInfo.currentLocation}</p>
+                            </div>
+                        )}
+                        <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Ready to Relocate</p>
+                            <p className={`font-semibold text-base capitalize ${submission.candidateInfo.readyToRelocate === 'yes' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {submission.candidateInfo.readyToRelocate}
+                            </p>
+                        </div>
+
+                        {/* Salary Details */}
+                        {submission.candidateInfo.experienceType === 'experienced' && (
+                            <>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Current Salary</p>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">{submission.candidateInfo.currentSalary} LPA</p>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Expected Salary</p>
+                                    <p className="font-semibold text-gray-800 dark:text-gray-200 text-base">{submission.candidateInfo.expectedSalary} LPA</p>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-black/20 p-4 rounded-xl border border-gray-100 dark:border-white/5">
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Has Salary Proof</p>
+                                    <p className={`font-semibold text-base capitalize ${submission.candidateInfo.hasSalaryProof === 'yes' ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                                        {submission.candidateInfo.hasSalaryProof}
+                                    </p>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Score Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
