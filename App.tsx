@@ -6,11 +6,8 @@ import { MessageBoxProvider } from './components/MessageBox';
 import Layout from './components/Layout';
 import AuthPage from './pages/Auth';
 import RecruiterDashboard from './pages/RecruiterDashboard';
-import ManageCandidates from './pages/ManageCandidates';
-import InterviewRequests from './pages/InterviewRequests';
 import InterviewWizard from './pages/Interview';
 import InterviewReport from './pages/Report';
-import JobCandidates from './pages/JobCandidates';
 import EditJob from './pages/EditJob';
 import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
@@ -184,10 +181,7 @@ const App: React.FC = () => {
                   <Route path="recruiter/interviews" element={<ProtectedRoute role="recruiter"><RecruiterInterviews /></ProtectedRoute>} />
                   <Route path="recruiter/invites" element={<ProtectedRoute role="recruiter"><InvitedCandidates /></ProtectedRoute>} />
                   <Route path="recruiter/interview/responses/:interviewId" element={<ProtectedRoute role="recruiter"><InterviewResponses /></ProtectedRoute>} />
-                  <Route path="recruiter/job/:jobId/candidates" element={<ProtectedRoute role="recruiter"><JobCandidates /></ProtectedRoute>} />
                   <Route path="recruiter/interview/create" element={<ProtectedRoute role="recruiter"><CreateInterview /></ProtectedRoute>} />
-                  <Route path="recruiter/candidates" element={<ProtectedRoute role="recruiter"><ManageCandidates /></ProtectedRoute>} />
-                  <Route path="recruiter/requests" element={<ProtectedRoute role="recruiter"><InterviewRequests /></ProtectedRoute>} />
                   <Route path="recruiter/tests" element={<ProtectedRoute role="recruiter"><RecruiterTests /></ProtectedRoute>} />
                   <Route path="recruiter/tests/create" element={<ProtectedRoute role="recruiter"><CreateTest /></ProtectedRoute>} />
                   <Route path="recruiter/tests/:testId/results" element={<ProtectedRoute role="recruiter"><TestResults /></ProtectedRoute>} />

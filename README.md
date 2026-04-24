@@ -172,7 +172,6 @@ interviewxpert-opencv/
 │   ├── FloatingPaths.tsx          # Decorative SVG paths
 │   ├── MessageBox.tsx             # Global message/alert system
 │   ├── NotificationCenter.tsx     # Notification dropdown
-│   └── RecruiterMessageModal.tsx  # Recruiter messaging modal
 │
 ├── pages/                     # Application pages (28 total)
 │   │
@@ -196,9 +195,6 @@ interviewxpert-opencv/
 │   ├── RecruiterDashboard.tsx     # Recruiter main dashboard
 │   ├── PostJob.tsx                # Create new job posting
 │   ├── EditJob.tsx                # Edit existing job
-│   ├── JobCandidates.tsx          # View candidates for a job
-│   ├── ManageCandidates.tsx       # Manage all candidates
-│   ├── InterviewRequests.tsx      # Handle interview requests
 │   │
 │   ├── # --- Admin Pages ---
 │   ├── AdminDashboard.tsx         # Admin control panel
@@ -479,9 +475,6 @@ flowchart TD
 | `/recruiter/jobs` | RecruiterDashboard | Main dashboard |
 | `/recruiter/post` | PostJob | Create new job posting |
 | `/recruiter/edit-job/:jobId` | EditJob | Edit existing job |
-| `/recruiter/job/:jobId/candidates` | JobCandidates | View candidates for job |
-| `/recruiter/candidates` | ManageCandidates | Manage all candidates |
-| `/recruiter/requests` | InterviewRequests | Handle interview requests |
 
 </details>
 

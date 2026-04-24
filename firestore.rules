@@ -99,13 +99,6 @@ service cloud.firestore {
       }
     }
 
-    match /interviewRequests/{requestId} {
-      allow get, list: if isAdmin() || isRecruiter();
-      allow create: if false;
-      allow update, delete: if isAdmin() ||
-        (isRecruiter() && resource.data.recruiterUID == request.auth.uid);
-    }
-
     match /notifications/{notificationId} {
       allow create: if signedIn();
       allow get, list, update, delete: if isAdmin() ||
