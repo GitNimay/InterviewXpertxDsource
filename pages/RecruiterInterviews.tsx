@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, orderBy, deleteDoc, doc, updateDoc, arrayUnion, where, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, deleteDoc, doc, updateDoc, arrayUnion, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
@@ -38,20 +38,20 @@ const RecruiterInterviews: React.FC = () => {
     };
 
     setLoading(true);
-    // NOTE: This query requires a composite index in Firestore.
-    // The error message in the browser console will provide a link to create it.
     const interviewsQuery = query(
       collection(db, 'interviews'),
-      // Filter to show only interviews created by the current recruiter
-      where('recruiterUID', '==', user.uid),
-      // Use '!=' to include interviews where 'isMock' is false OR where the field doesn't exist (for older data).
-      // This correctly excludes documents where 'isMock' is explicitly true.
-      where('isMock', '!=', true),
-      orderBy('createdAt', 'desc')
+      where('recruiterUID', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(interviewsQuery, async (querySnapshot) => {
-      const interviewsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Interview));
+      const interviewsData = querySnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Interview))
+        .filter(interview => interview.isMock !== true)
+        .sort((a, b) => {
+          const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
+          const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
+          return timeB - timeA;
+        });
       setInterviews(interviewsData);
       
       const newSubmissionsMap: Record<string, any[]> = {};

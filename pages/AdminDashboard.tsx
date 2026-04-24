@@ -199,6 +199,7 @@ const AdminDashboard: React.FC = () => {
         fullname: req.fullname,
         role: 'recruiter',
         experience: req.experience || 0,
+        adminVerified: true,
         accountStatus: 'active',
         createdAt: serverTimestamp(),
         profilePhotoURL: null

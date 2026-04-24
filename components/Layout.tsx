@@ -71,9 +71,6 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                     <Link to="/recruiter/jobs" className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/recruiter/jobs') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
                       Dashboard
                     </Link>
-                    <Link to="/recruiter/post" className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/recruiter/post') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      Post Job
-                    </Link>
                     <Link to="/recruiter/interviews" className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/recruiter/interviews') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
                       My Interviews
                     </Link>
@@ -90,39 +87,9 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                       Assessments
                     </Link>
                   </>
-                ) : user ? (
-                  <>
-                    <Link to="/candidate/jobs" className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive('/candidate/jobs') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      Jobs
-                    </Link>
-                    <Link to="/candidate/best-matches" className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive('/candidate/best-matches') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      Best Matches
-                    </Link>
-                    <Link to="/candidate/interviews" className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive('/candidate/interviews') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      My Interviews
-                    </Link>
-                    <Link to="/candidate/resume-analysis" className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive('/candidate/resume-analysis') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      Resume AI
-                    </Link>
-                    <Link to="/candidate/resume-builder" className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive('/candidate/resume-builder') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      Builder
-                    </Link>
-                    <Link to="/candidate/mock-interview" className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive('/candidate/mock-interview') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      Mock
-                    </Link>
-                    <Link to="/candidate/tests" className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive('/candidate/tests') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      Assessments
-                    </Link>
-                    <Link to="/candidate/ai-agent" className={`group relative px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all duration-300 ${isActive('/candidate/ai-agent') ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                      Career Copilot
-                      <span className="absolute -top-1.5 -right-2 bg-gradient-to-r from-pink-500 to-rose-600 text-white text-[7px] leading-none font-bold px-1 py-[1px] rounded transition-all shadow-sm border-[0.5px] border-white dark:border-[#09090b] transform rotate-12 z-20">
-                        NEW
-                      </span>
-                    </Link>
-                  </>
                 ) : (
                   <Link to="/" className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
-                    Home
+                    Portal
                   </Link>
                 )}
               </div>
@@ -130,14 +97,6 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
             {/* Right Side Actions */}
             <div className="flex items-center gap-3">
-              {/* Wallet for Candidate */}
-              {user && userProfile?.role === 'candidate' && (
-                <Link to="/candidate/payment" className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-yellow-500/10 text-yellow-400 rounded-full border border-yellow-500/20 text-xs font-bold hover:bg-yellow-500/20 transition-all" title="Wallet Balance">
-                  <i className="fas fa-coins"></i>
-                  <span>{(userProfile as any)?.walletBalance || 0}</span>
-                </Link>
-              )}
-
               {user ? (
                 <>
 
@@ -238,41 +197,39 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         </div>
       </nav>
 
-      <main className={`workspace-card flex-grow w-full ${isActive('/candidate/ai-agent') ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'} relative`}>
+      <main className="workspace-card flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
         {children}
       </main>
 
-      {!isActive('/candidate/ai-agent') && (
-        <footer className="border-t border-gray-200 dark:border-white/[0.06] bg-white/50 dark:bg-[#08080c]/80 backdrop-blur-sm py-8 mt-auto z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-              <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
-                <Logo className="w-6 h-6" />
-                <span className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight">InterviewXpert</span>
-              </div>
+      <footer className="border-t border-gray-200 dark:border-white/[0.06] bg-white/50 dark:bg-[#08080c]/80 backdrop-blur-sm py-8 mt-auto z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+              <Logo className="w-6 h-6" />
+              <span className="text-sm font-semibold text-gray-900 dark:text-white tracking-tight">InterviewXpert</span>
+            </div>
 
-              <div className="flex items-center gap-3">
-                <Link to="/contact" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-white/5 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-gray-200 dark:border-white/10 hover:border-blue-200 dark:hover:border-blue-800 shadow-sm hover:shadow-md">
-                  <Mail size={14} className="group-hover:scale-110 transition-transform" />
-                  <span>Contact Us</span>
-                </Link>
-                <Link to="/report-bug" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-white/5 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all border border-gray-200 dark:border-white/10 hover:border-red-200 dark:hover:border-red-800 shadow-sm hover:shadow-md">
-                  <Bug size={14} className="group-hover:scale-110 transition-transform" />
-                  <span>Report Bug</span>
-                </Link>
-                <Link to="/reviews" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-white/5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-all border border-gray-200 dark:border-white/10 hover:border-purple-200 dark:hover:border-purple-800 shadow-sm hover:shadow-md">
-                  <MessageSquare size={14} className="group-hover:scale-110 transition-transform" />
-                  <span>Reviews</span>
-                </Link>
-              </div>
+            <div className="flex items-center gap-3">
+              <Link to="/contact" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-white/5 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all border border-gray-200 dark:border-white/10 hover:border-blue-200 dark:hover:border-blue-800 shadow-sm hover:shadow-md">
+                <Mail size={14} className="group-hover:scale-110 transition-transform" />
+                <span>Contact Us</span>
+              </Link>
+              <Link to="/report-bug" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-white/5 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-all border border-gray-200 dark:border-white/10 hover:border-red-200 dark:hover:border-red-800 shadow-sm hover:shadow-md">
+                <Bug size={14} className="group-hover:scale-110 transition-transform" />
+                <span>Report Bug</span>
+              </Link>
+              <Link to="/reviews" className="group flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-white/5 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-all border border-gray-200 dark:border-white/10 hover:border-purple-200 dark:hover:border-purple-800 shadow-sm hover:shadow-md">
+                <MessageSquare size={14} className="group-hover:scale-110 transition-transform" />
+                <span>Reviews</span>
+              </Link>
+            </div>
 
-              <div className="text-xs text-gray-400 dark:text-gray-600 font-medium">
-                &copy; 2026 InterviewXpert Inc.
-              </div>
+            <div className="text-xs text-gray-400 dark:text-gray-600 font-medium">
+              &copy; 2026 InterviewXpert Inc.
             </div>
           </div>
-        </footer>
-      )}
+        </div>
+      </footer>
 
       {/* Mobile Menu Overlay & Sidebar */}
       {isMobileMenuOpen && (
@@ -308,27 +265,15 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                 ) : userProfile?.role === 'recruiter' ? (
                   <>
                     <Link to="/recruiter/jobs" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/recruiter/jobs') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-columns w-5 text-center"></i> Dashboard</Link>
-                    <Link to="/recruiter/post" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/recruiter/post') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-plus-circle w-5 text-center"></i> Post Job</Link>
                     <Link to="/recruiter/interviews" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/recruiter/interviews') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-video w-5 text-center"></i> My Interviews</Link>
                     <Link to="/recruiter/interview/create" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/recruiter/interview/create') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-video w-5 text-center"></i> Create Interview</Link>
                     <Link to="/recruiter/candidates" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/recruiter/candidates') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-users w-5 text-center"></i> Candidates</Link>
                     <Link to="/recruiter/requests" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/recruiter/requests') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-inbox w-5 text-center"></i> Requests</Link>
                     <Link to="/recruiter/tests" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/recruiter/tests') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-clipboard-list w-5 text-center"></i> Assessments</Link>
                   </>
-                ) : user ? (
-                  <>
-                    <Link to="/candidate/jobs" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/candidate/jobs') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-briefcase w-5 text-center"></i> Jobs</Link>
-                    <Link to="/candidate/best-matches" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/candidate/best-matches') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-star w-5 text-center"></i> Best Matches</Link>
-                    <Link to="/candidate/interviews" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/candidate/interviews') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-video w-5 text-center"></i> My Interviews</Link>
-                    <Link to="/candidate/resume-analysis" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/candidate/resume-analysis') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-file-alt w-5 text-center"></i> Resume AI</Link>
-                    <Link to="/candidate/resume-builder" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/candidate/resume-builder') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-pen-fancy w-5 text-center"></i> Builder</Link>
-                    <Link to="/candidate/mock-interview" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/candidate/mock-interview') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-robot w-5 text-center"></i> Mock Interview</Link>
-                    <Link to="/candidate/tests" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/candidate/tests') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-clipboard-check w-5 text-center"></i> Assessments</Link>
-                    <Link to="/candidate/ai-agent" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/candidate/ai-agent') ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-robot w-5 text-center"></i> Career Copilot</Link>
-                  </>
                 ) : (
                   <>
-                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-home w-5 text-center"></i> Home</Link>
+                    <Link to="/" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${isActive('/') ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white'}`}><i className="fas fa-home w-5 text-center"></i> Portal</Link>
                   </>
                 )}
               </div>
@@ -347,18 +292,6 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                       <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{userProfile?.email}</div>
                     </div>
                   </Link>
-
-
-
-                  {/* Wallet */}
-                  {userProfile?.role === 'candidate' && (
-                    <Link to="/candidate/payment" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 rounded-xl">
-                      <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-500 font-medium text-sm">
-                        <i className="fas fa-coins"></i> Wallet
-                      </div>
-                      <span className="font-bold text-yellow-800 dark:text-yellow-400">{(userProfile as any)?.walletBalance || 0} pts</span>
-                    </Link>
-                  )}
 
                   {/* Theme */}
                   <div className="bg-gray-50 dark:bg-white/5 p-1 rounded-xl flex">

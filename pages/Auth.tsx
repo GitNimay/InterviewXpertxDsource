@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, addDoc, collection, getDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut, setPersistence, browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import { doc, serverTimestamp, addDoc, collection, getDoc } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { useNavigate, Link } from 'react-router-dom';
 import gsap from 'gsap';
@@ -57,9 +57,7 @@ const AuthPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullname, setFullname] = useState('');
-  const [role, setRole] = useState<'recruiter' | 'candidate'>('candidate');
   const [experience, setExperience] = useState(0);
-  const [phone, setPhone] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -82,6 +80,15 @@ const AuthPage: React.FC = () => {
           return;
         }
       }
+
+      const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+      const userRole = userDoc.data()?.role;
+      if (userRole !== 'recruiter' && userRole !== 'admin') {
+        await signOut(auth);
+        setError('This Dsauce portal is only for recruiters and admins. Candidates should use the interview or assessment link sent to them.');
+        return;
+      }
+
       navigate('/');
     } catch (err: any) {
       setError("Login failed: " + err.message);
@@ -96,58 +103,19 @@ const AuthPage: React.FC = () => {
     setError(null);
     setMessage(null);
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      setLoading(false);
-      return;
-    }
-
-    // Handle Recruiter Request (Do not create Auth user yet)
-    if (role === 'recruiter') {
-      try {
-        await addDoc(collection(db, 'recruiterRequests'), {
-          email,
-          fullname,
-          experience: Number(experience),
-          status: 'pending',
-          createdAt: serverTimestamp()
-        });
-        setMessage("Request sent! An admin will review your recruiter application. You will be notified once approved.");
-      } catch (err: any) {
-        setError("Request failed: " + err.message);
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-
-      const userData: any = {
-        uid: cred.user.uid,
+      await addDoc(collection(db, 'recruiterRequests'), {
         email,
         fullname,
-        role,
         experience: Number(experience),
-        accountStatus: 'active',
+        role: 'recruiter',
+        status: 'pending',
         createdAt: serverTimestamp(),
-        profilePhotoURL: null
-      };
-
-      if (role === 'candidate') {
-        userData.phone = phone;
-      }
-
-      await setDoc(doc(db, 'users', cred.user.uid), userData);
-
-      await sendEmailVerification(cred.user);
-      await signOut(auth);
-
-      setShowVerifyPopup(true);
+      });
+      setMessage("Request sent! An admin will review your recruiter access request and create your account once approved.");
       setIsLogin(true);
     } catch (err: any) {
-      setError("Signup failed: " + err.message);
+      setError("Request failed: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -188,14 +156,14 @@ const AuthPage: React.FC = () => {
               {/* Header */}
               <div className="mb-6">
                 <h1 className="text-[22px] font-semibold tracking-tight mb-2 text-white">
-                  {isReset ? 'Reset Password' : isLogin ? 'Welcome back!' : 'Create account'}
+                  {isReset ? 'Reset Password' : isLogin ? 'Welcome back!' : 'Request recruiter access'}
                 </h1>
                 <p className="text-zinc-400 text-sm">
                   {isReset
                     ? 'Enter your email to receive a reset link'
                     : isLogin
-                      ? 'Login to access your dashboard'
-                      : 'Get started with your free account'}
+                      ? 'Login to access the Dsauce recruiter or admin portal'
+                      : 'Submit your details for recruiter account approval'}
                 </p>
               </div>
 
@@ -271,18 +239,7 @@ const AuthPage: React.FC = () => {
                       </div>
 
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label className="saas-ui-mono text-xs font-medium text-zinc-300 ml-1">I am a...</label>
-                          <select
-                            className="w-full px-3 py-2.5 bg-zinc-900/50 border border-zinc-800 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all appearance-none cursor-pointer hover:border-zinc-700"
-                            value={role}
-                            onChange={e => setRole(e.target.value as 'candidate' | 'recruiter')}
-                          >
-                            <option value="candidate">Candidate</option>
-                            <option value="recruiter">Recruiter</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 col-span-2">
                           <label className="saas-ui-mono text-xs font-medium text-zinc-300 ml-1">Experience (Yrs)</label>
                           <input
                             type="number"
@@ -294,21 +251,6 @@ const AuthPage: React.FC = () => {
                           />
                         </div>
                       </div>
-
-                      {role === 'candidate' && (
-                        <div className="space-y-1.5">
-                          <label className="saas-ui-mono text-xs font-medium text-zinc-300 ml-1">Phone Number</label>
-                          <input
-                            type="tel"
-                            pattern="[0-9]{10}"
-                            required
-                            placeholder="10 digit number"
-                            className="w-full px-3 py-2.5 bg-zinc-900/50 border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all hover:border-zinc-700"
-                            value={phone}
-                            onChange={e => setPhone(e.target.value)}
-                          />
-                        </div>
-                      )}
                     </>
                   )}
 
@@ -330,25 +272,26 @@ const AuthPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="saas-ui-mono text-xs font-medium text-zinc-300 ml-1">Password</label>
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-primary transition-colors">
-                        <i className="fa-solid fa-lock text-sm"></i>
-                      </div>
-                      <input
-                        type="password"
-                        required
-                        minLength={6}
-                        className="w-full pl-9 pr-3 py-2.5 bg-zinc-900/50 border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all hover:border-zinc-700"
-                        placeholder="Enter password"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
                   {isLogin && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="saas-ui-mono text-xs font-medium text-zinc-300 ml-1">Password</label>
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-500 group-focus-within:text-primary transition-colors">
+                            <i className="fa-solid fa-lock text-sm"></i>
+                          </div>
+                          <input
+                            type="password"
+                            required
+                            minLength={6}
+                            className="w-full pl-9 pr-3 py-2.5 bg-zinc-900/50 border border-zinc-800 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all hover:border-zinc-700"
+                            placeholder="Enter password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
                     <div className="flex items-center justify-between pt-1">
                       <label className="flex items-center gap-2 cursor-pointer group">
                         <div className={`w-3.5 h-3.5 rounded border transition-colors flex items-center justify-center ${rememberMe ? 'border-primary bg-primary' : 'border-zinc-700 bg-zinc-800 group-hover:border-primary'}`}>
@@ -370,6 +313,7 @@ const AuthPage: React.FC = () => {
                         Forgot password?
                       </button>
                     </div>
+                    </>
                   )}
 
                   <button
@@ -383,7 +327,7 @@ const AuthPage: React.FC = () => {
                         Processing...
                       </span>
                     ) : (
-                      isLogin ? 'Log in' : (role === 'recruiter' ? 'Submit Request' : 'Sign Up')
+                      isLogin ? 'Log in' : 'Submit Request'
                     )}
                   </button>
 
@@ -402,9 +346,9 @@ const AuthPage: React.FC = () => {
                       onClick={() => setIsLogin(!isLogin)}
                       className="text-zinc-400 hover:text-white transition-colors text-xs"
                     >
-                      {isLogin ? "Don't have an account? " : "Already have an account? "}
+                      {isLogin ? "Need recruiter access? " : "Already have portal access? "}
                       <span className="text-primary font-semibold hover:underline ml-1">
-                        {isLogin ? "Sign up" : "Log in"}
+                        {isLogin ? "Request it" : "Log in"}
                       </span>
                     </button>
                   </div>
@@ -458,7 +402,7 @@ const AuthPage: React.FC = () => {
                   ref={descRef}
                   className="text-zinc-400 text-base leading-relaxed max-w-lg mb-8 opacity-0"
                 >
-                  Join thousands of candidates using AI to land their dream jobs at top tech companies.
+                  Manage Dsauce hiring workflows, recruiter access, and admin operations from one secure portal.
                 </p>
 
                 <div ref={featuresRef} className="space-y-4">
@@ -468,7 +412,7 @@ const AuthPage: React.FC = () => {
                     </div>
                     <div>
                       <span className="block text-white font-semibold text-sm">Real-time AI Feedback</span>
-                      <span className="text-zinc-500 text-xs">Get instant corrections as you speak</span>
+                      <span className="text-zinc-500 text-xs">Review structured interview and assessment outcomes faster</span>
                     </div>
                   </div>
 
@@ -478,7 +422,7 @@ const AuthPage: React.FC = () => {
                     </div>
                     <div>
                       <span className="block text-white font-semibold text-sm">Instant Performance Score</span>
-                      <span className="text-zinc-500 text-xs">Know exactly where you stand</span>
+                      <span className="text-zinc-500 text-xs">Track invite-driven hiring progress with less manual effort</span>
                     </div>
                   </div>
                 </div>

@@ -106,8 +106,8 @@ const RecruiterTests: React.FC = () => {
                   <span className="text-xs text-gray-400">Created {test.createdAt?.toDate().toLocaleDateString()}</span>
                   <button onClick={() => {
                     navigator.clipboard.writeText(`${window.location.origin}/#/test/${test.id}`);
-                    alert("Public test link copied to clipboard!");
-                  }} className="text-sm font-bold text-blue-600 hover:underline">Copy Open Link</button>
+                    alert("Assessment link copied to clipboard!");
+                  }} className="text-sm font-bold text-blue-600 hover:underline">Copy Test Link</button>
                 </div>
               </div>
             ))}

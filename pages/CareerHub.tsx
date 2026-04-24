@@ -416,11 +416,12 @@ const CareerHub: React.FC<{ isDarkTheme: boolean }> = ({ isDarkTheme }) => {
             const q = query(
                 collection(db, 'jobs'), 
                 where('applyDeadline', '>', now),
-                where('isMock', '!=', true),
                 orderBy('applyDeadline', 'asc')
             );
             const snapshot = await getDocs(q);
-            const fetchedJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
+            const fetchedJobs = snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as Job))
+                .filter(job => job.isMock !== true);
             setJobs(fetchedJobs);
         } catch (error) {
             console.error("Error fetching jobs:", error);

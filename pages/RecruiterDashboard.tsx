@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, where, getDocs, orderBy, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -65,21 +65,25 @@ const RecruiterDashboard: React.FC = () => {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
+      let jobsData: Job[] = [];
       try {
         setLoading(true);
-        // 1. Fetch Jobs
+        // Fetch jobs first so the recruiter dashboard can always render core data.
         const jobsQuery = query(
           collection(db, 'jobs'),
-          where('recruiterUID', '==', user.uid),
-          orderBy('createdAt', 'desc')
+          where('recruiterUID', '==', user.uid)
         );
         const jobsSnap = await getDocs(jobsQuery);
-        const jobsData = jobsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
+        jobsData = jobsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Job));
+        jobsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         setJobs(jobsData);
+      } catch (err) {
+        console.error("Error fetching recruiter jobs:", err);
+        setJobs([]);
+      }
 
-        // 2. Fetch Requests (for charts)
-        // Use correct collection name 'interviewRequests' and sort by date for "Top 2"
-        // Removed orderBy from query to avoid index requirement issues; sorting in memory instead.
+      try {
+        // Old request analytics should not block the recruiter dashboard if the collection is unavailable.
         const requestsQuery = query(
           collection(db, 'interviewRequests'),
           where('recruiterUID', '==', user.uid)
@@ -88,8 +92,12 @@ const RecruiterDashboard: React.FC = () => {
         const requestsData = requestsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as InterviewRequest));
         requestsData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         setRequests(requestsData);
+      } catch (err) {
+        console.warn("Skipping recruiter request analytics:", err);
+        setRequests([]);
+      }
 
-        // 3. Fetch Interviews (for Pending Review count)
+      try {
         const jobIds = jobsData.map(j => j.id);
         let allInterviews: any[] = [];
         if (jobIds.length > 0) {
@@ -102,7 +110,8 @@ const RecruiterDashboard: React.FC = () => {
         }
         setInterviews(allInterviews);
       } catch (err) {
-        console.error("Error fetching dashboard data:", err);
+        console.error("Error fetching recruiter interviews:", err);
+        setInterviews([]);
       } finally {
         setLoading(false);
       }
@@ -160,9 +169,12 @@ const RecruiterDashboard: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Recruiter Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">Overview of your recruitment activities and performance.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <Link to="/recruiter/post" className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white dark:text-black font-semibold rounded-full shadow-lg shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm">
-            <i className="fas fa-plus"></i> <span>Post New Job</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link to="/recruiter/interview/create" className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white dark:text-black font-semibold rounded-full shadow-lg shadow-primary/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm">
+            <i className="fas fa-video"></i> <span>Create Interview</span>
+          </Link>
+          <Link to="/recruiter/tests/create" className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 font-semibold rounded-full shadow-sm transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-sm">
+            <i className="fas fa-clipboard-list text-blue-500"></i> <span>Create Assessment</span>
           </Link>
         </div>
       </div>
@@ -336,15 +348,18 @@ const RecruiterDashboard: React.FC = () => {
 
       {/* Jobs Table Section */}
       <div className="mt-8 jobs-table-section">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Your Posted Jobs</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Existing Job Posts</h2>
 
         {jobs.length === 0 ? (
           <div className="text-center py-16 bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/5 border-dashed">
             <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-500">
               <i className="fas fa-clipboard-list text-2xl"></i>
             </div>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">You haven't posted any jobs yet.</p>
-            <Link to="/recruiter/post" className="text-primary font-medium hover:underline hover:text-primary-light transition-colors">Create your first job posting</Link>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">Direct job posting is disabled for this Dsauce workspace. Use interviews and assessments instead.</p>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <Link to="/recruiter/interview/create" className="text-primary font-medium hover:underline hover:text-primary-light transition-colors">Create your first interview</Link>
+              <Link to="/recruiter/tests/create" className="text-primary font-medium hover:underline hover:text-primary-light transition-colors">Create your first assessment</Link>
+            </div>
           </div>
         ) : (
           <div className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm dark:shadow-none">

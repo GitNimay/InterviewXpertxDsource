@@ -710,8 +710,8 @@ const TakeTest: React.FC = () => {
           )}
 
           <div className="flex justify-center mt-6">
-            <button onClick={() => navigate(auth.currentUser ? '/candidate/dashboard' : '/')} className="px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg">
-              {auth.currentUser ? 'Return to Dashboard' : 'Return to Homepage'}
+            <button onClick={() => navigate('/')} className="px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-black rounded-xl font-bold hover:opacity-90 transition-opacity shadow-lg">
+              Return to Portal
             </button>
           </div>
 
@@ -727,9 +727,9 @@ const TakeTest: React.FC = () => {
                   <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/30 transform rotate-3">
                     <i className="fa-solid fa-rocket text-2xl"></i>
                   </div>
-                  <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-3">Ace Your Next Interview!</h3>
+                  <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-3">Assessment Submitted</h3>
                   <p className="text-gray-600 dark:text-gray-300 text-sm mb-6 leading-relaxed">
-                    Great job finishing the assessment! Did you know InterviewXpert offers <span className="font-bold text-blue-500">Free AI Mock Interviews</span> and a <span className="font-bold text-purple-500">Smart Resume Builder</span> to help you land your dream job?
+                    Your response has been recorded. If this assessment qualifies you for a next round, the recruiter will contact you using the details you provided.
                   </p>
                   
                   <div className="flex flex-col gap-3">
@@ -737,7 +737,7 @@ const TakeTest: React.FC = () => {
                       onClick={() => navigate('/')}
                       className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-bold shadow-lg transform transition-all hover:-translate-y-0.5"
                     >
-                      Explore Platform for Free
+                      Return to Portal
                     </button>
                     <button 
                       onClick={() => navigate('/submit-review')}
@@ -772,7 +772,7 @@ const TakeTest: React.FC = () => {
     return (
       <div className={`min-h-screen flex flex-col items-center justify-center ${isDark ? 'bg-[#050505] text-white' : 'bg-gray-50 text-gray-900'}`}>
         <p className="text-xl mb-4">This test has no questions.</p>
-        <button onClick={() => navigate('/candidate/jobs')} className="text-blue-500 hover:underline">Go Back</button>
+        <button onClick={() => navigate('/')} className="text-blue-500 hover:underline">Go Back</button>
       </div>
     );
   }
@@ -783,7 +783,7 @@ const TakeTest: React.FC = () => {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#050505] text-white' : 'bg-gray-50 text-gray-900'}`}>
         <p>Error loading question.</p>
-        <button onClick={() => navigate('/candidate/jobs')} className="ml-4 text-blue-500 hover:underline">Go Back</button>
+        <button onClick={() => navigate('/')} className="ml-4 text-blue-500 hover:underline">Go Back</button>
       </div>
     );
   }

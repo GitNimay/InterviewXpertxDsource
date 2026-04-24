@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { collection, query, where, getDocs, orderBy, updateDoc, doc, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, arrayUnion } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
@@ -53,12 +53,17 @@ const InvitedCandidates: React.FC = () => {
                 // 1. Fetch all interviews for this recruiter
                 const q = query(
                     collection(db, 'interviews'), 
-                    where('recruiterUID', '==', user.uid), 
-                    where('isMock', '!=', true),
-                    orderBy('createdAt', 'desc')
+                    where('recruiterUID', '==', user.uid)
                 );
                 const snapshot = await getDocs(q);
-                const fetchedInterviews = snapshot.docs.map(d => ({id: d.id, ...d.data()} as Interview));
+                const fetchedInterviews = snapshot.docs
+                    .map(d => ({id: d.id, ...d.data()} as Interview))
+                    .filter(interview => interview.isMock !== true)
+                    .sort((a, b) => {
+                        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
+                        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
+                        return timeB - timeA;
+                    });
                 setInterviews(fetchedInterviews);
 
                 // 2. Fetch submissions for all interviews

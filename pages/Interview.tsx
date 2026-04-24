@@ -1790,12 +1790,9 @@ const InterviewSubmission: React.FC<{
             <p className="text-gray-600 dark:text-gray-400 mb-6">Your interview has been successfully submitted. The recruiter will be in touch with the next steps.</p>
             
             <div className="bg-blue-50 dark:bg-blue-900/30 p-6 rounded-xl border border-blue-100 dark:border-blue-800">
-              <h4 className="font-semibold text-lg text-blue-800 dark:text-blue-300 mb-2">Ready for your next interview?</h4>
-              <p className="text-sm text-blue-700 dark:text-blue-400 mb-4">Don't just wait. Level up your skills with our AI-powered mock interview platform, <strong>InterviewXpert</strong>. Get instant feedback and practice anytime.</p>
+              <h4 className="font-semibold text-lg text-blue-800 dark:text-blue-300 mb-2">What happens next?</h4>
+              <p className="text-sm text-blue-700 dark:text-blue-400 mb-4">Your response has been saved successfully. The recruiter can now review your submission and follow up with the next steps.</p>
               <div className="flex flex-col gap-3">
-                <button onClick={() => navigate('/candidate/mock-interview')} className="w-full bg-blue-600 text-white font-bold py-3 px-5 rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20 transform hover:-translate-y-0.5">
-                  Start Practicing Now
-                </button>
                 <button onClick={() => navigate('/submit-review')} className="w-full bg-gradient-to-r from-pink-500 to-orange-400 text-white font-bold py-3 px-5 rounded-lg hover:from-pink-600 hover:to-orange-500 transition-colors shadow-lg shadow-pink-500/20 transform hover:-translate-y-0.5 flex justify-center items-center gap-2">
                   <i className="fa-solid fa-star text-yellow-300 drop-shadow-md"></i> Give Review
                 </button>
