@@ -16,7 +16,7 @@
 [![Vite](https://img.shields.io/badge/Vite-6.2-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-[Live Demo](#) • [Documentation](#table-of-contents) • [Report Bug](https://github.com/AaradhyaproK/interviewxpert-opencv/issues) • [Request Feature](https://github.com/AaradhyaproK/interviewxpert-opencv/issues)
+[Live Demo](#) • [Documentation](#table-of-contents) • [Report Bug](#) • [Request Feature](#)
 
 ---
 
@@ -49,11 +49,11 @@
 
 ## Overview
 
-**InterviewXpert** is a cutting-edge recruitment and interview preparation platform that leverages **Artificial Intelligence** and **Computer Vision** to revolutionize the hiring process. The platform serves three distinct user types:
+**InterviewXpert** is a recruitment and interview preparation platform that leverages **Artificial Intelligence** to streamline hiring workflows. The platform serves three distinct user types:
 
 | Role | Purpose |
 |------|---------|
-| **Candidates** | Practice AI-powered mock interviews with real-time behavioral analysis |
+| **Candidates** | Practice AI-powered mock interviews with structured recording and AI evaluation |
 | **Recruiters** | Post jobs, manage candidates, and review AI-generated interview reports |
 | **Admins** | Monitor platform analytics, manage users, and oversee transactions |
 
@@ -67,7 +67,7 @@
 | Feature | Description |
 |---------|-------------|
 | **AI Mock Interviews** | Practice with an intelligent AI interviewer that asks role-specific questions |
-| **Real-time Behavioral Analysis** | Uses Face-API.js to analyze eye contact, expressions, and confidence |
+| **Secure Session Tracking** | Records interview responses while tracking tab switching for report integrity |
 | **Resume Builder & Analyzer** | Create professional resumes and get instant ATS compatibility scores |
 | **Smart Job Matching** | Get "Best Match" recommendations based on skills and profile |
 | **Performance Reports** | Comprehensive feedback on technical accuracy and communication |
@@ -124,8 +124,7 @@ flowchart TB
         NotificationService["Notification Service"]
     end
 
-    subgraph AI["AI & Computer Vision"]
-        FaceAPI["Face-API.js"]
+    subgraph AI["AI Services"]
         GoogleGenAI["Google GenAI"]
     end
 
@@ -154,7 +153,7 @@ flowchart TB
 ## Project Structure
 
 ```
-interviewxpert-opencv/
+interviewxpert/
 ├── index.html                 # Entry HTML file
 ├── index.tsx                  # React entry point
 ├── App.tsx                    # Main application with routing
@@ -265,8 +264,7 @@ flowchart LR
 
     subgraph Interview["Interview"]
         C --> D[Start Interview]
-        D --> E[Face Detection Init]
-        E --> F[Answer Questions]
+        D --> F[Answer Questions]
         F --> G{More Questions?}
         G -->|Yes| F
         G -->|No| H[Submit Interview]
@@ -352,11 +350,10 @@ sequenceDiagram
 </td>
 <td>
 
-### AI & CV
+### AI & Reporting
 | Technology | Version | Purpose |
 |------------|---------|---------|
 | Google GenAI | 1.30 | AI Responses |
-| Face-API.js | 1.7 | Facial Analysis |
 | Recharts | 3.5 | Data Viz |
 | PDF.js | 5.4 | PDF Parsing |
 
@@ -378,8 +375,8 @@ sequenceDiagram
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/AaradhyaproK/interviewxpert-opencv.git
-cd interviewxpert-opencv
+git clone <repository-url>
+cd interviewxpert
 
 # 2. Install dependencies
 npm install
@@ -601,7 +598,7 @@ npm run build && npm run preview
 - [ ] User registration flow (Candidate & Recruiter)
 - [ ] Login with valid/invalid credentials
 - [ ] Job posting and editing
-- [ ] Interview session with face detection
+- [ ] Interview session recording and report generation
 - [ ] Resume upload and analysis
 - [ ] Payment flow with Razorpay
 - [ ] Admin dashboard functionality

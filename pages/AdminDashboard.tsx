@@ -438,8 +438,8 @@ const AdminDashboard: React.FC = () => {
           >
             {isMobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <div className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center">
-            <Logo className="w-7 h-7 sm:w-8 sm:h-8" />
+          <div className="w-[96px] sm:w-[132px] flex items-center justify-center">
+            <Logo className="w-full h-auto" />
           </div>
         </div>
 

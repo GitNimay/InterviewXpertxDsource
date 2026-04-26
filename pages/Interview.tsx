@@ -5,7 +5,7 @@ import { db } from '../services/firebase';
 import { uploadToCloudinary, generateInterviewQuestions, requestTranscription, fetchTranscriptText, generateFeedback } from '../services/api';
 import { speak } from '../lib/tts';
 import { Interview, InterviewState } from '../types';
-import { createPortal, useMemo } from 'react-dom';
+import { createPortal } from 'react-dom';
 import { LanguageSelector } from './LanguageSelector';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -42,19 +42,6 @@ type CandidateInfo = {
   totalExperienceYears: string;
   totalExperienceMonths: string;
   highlightedSkillsForJob?: string;
-};
-
-// --- Helper: Load Face API ---
-const loadFaceAPI = (onLoaded: () => void) => {
-  if ((window as any).faceapi) {
-    onLoaded();
-    return;
-  }
-  const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
-  script.async = true;
-  script.onload = onLoaded;
-  document.body.appendChild(script);
 };
 
 // --- Sarvam AI Transcription Helper ---
@@ -94,17 +81,27 @@ const transcribeWithSarvam = async (audioBlob: Blob, languageCode: string): Prom
 }
 
 const parsePdfToText = async (fileOrBlob: File | Blob): Promise<string> => {
+  const MAX_PDF_PAGES = 3;
+  const MAX_PDF_TEXT_CHARS = 6000;
+
   try {
     const arrayBuffer = await fileOrBlob.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
     let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
+    const pagesToParse = Math.min(pdf.numPages, MAX_PDF_PAGES);
+
+    for (let i = 1; i <= pagesToParse; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items.map((item: any) => item.str).join(' ');
       fullText += pageText + ' ';
+
+      if (fullText.length >= MAX_PDF_TEXT_CHARS) {
+        break;
+      }
     }
-    return fullText.trim();
+
+    return fullText.trim().slice(0, MAX_PDF_TEXT_CHARS);
   } catch (error) {
     console.error("PDF parsing error:", error);
     // Return empty string on failure, the base64 will be used as a fallback
@@ -113,6 +110,51 @@ const parsePdfToText = async (fileOrBlob: File | Blob): Promise<string> => {
 };
 
 const QUESTION_TIME_MS = 2 * 60 * 1000; // 2 minutes
+const TRANSCRIPT_POLL_ATTEMPTS = 20;
+const TRANSCRIPT_POLL_DELAY_MS = 3000;
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const extractResumeText = async (fileOrBlob: File | Blob): Promise<string> => {
+  if (fileOrBlob.type === 'application/pdf') {
+    return parsePdfToText(fileOrBlob);
+  }
+
+  if (fileOrBlob.type.startsWith('text/')) {
+    return (await fileOrBlob.text()).slice(0, 6000);
+  }
+
+  return '';
+};
+
+const getBlobAsBase64 = (blob: Blob): Promise<string> => (
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    reader.onload = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror = error => reject(error);
+  })
+);
+
+const getFileAsBase64 = (file: File): Promise<{ base64: string; url: string }> => (
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const url = reader.result as string;
+      resolve({ base64: url.split(',')[1], url });
+    };
+    reader.onerror = error => reject(error);
+  })
+);
+
+const getFullscreenElement = (): Element | null => {
+  const doc = document as Document & {
+    webkitFullscreenElement?: Element | null;
+    msFullscreenElement?: Element | null;
+  };
+
+  return doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement || null;
+};
 
 // --- Component: Tic-Tac-Toe (Glassmorphic & Dark Mode) ---
 const TicTacToe: React.FC = () => {
@@ -160,7 +202,7 @@ const TicTacToe: React.FC = () => {
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 dark:bg-gray-900/90 backdrop-blur-md rounded-xl transition-all duration-300">
       <h3 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-white mb-2 sm:mb-4">
-        {winner ? (winner === 'X' ? 'You Won! 🎉' : 'AI Won! 🤖') : (isXNext ? 'Your Turn (X)' : 'AI Thinking...')}
+        {winner ? (winner === 'X' ? 'You Won!' : 'AI Won!') : (isXNext ? 'Your Turn (X)' : 'AI Thinking...')}
       </h3>
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3 sm:mb-6">
         {board.map((cell, i) => (
@@ -664,13 +706,14 @@ const CandidateInterviewFlow: React.FC = () => {
     jobId: '', jobTitle: '', jobDescription: '', candidateResumeURL: null, candidateResumeMimeType: null,
     questions: [], answers: [], videoURLs: [], transcriptIds: [], transcriptTexts: [], currentQuestionIndex: 0,
     language: 'en',
+    pendingResponseCount: 0,
   });
 
   const [loadingMsg, setLoadingMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [tabSwitches, setTabSwitches] = useState(0);
   const [speedStatus, setSpeedStatus] = useState<string | null>(null);
-  const [cvStats, setCvStats] = useState<any>(null);
+  const [interviewTerminated, setInterviewTerminated] = useState(false);
 
   // 1. Validate Access & Fetch Interview Details
   useEffect(() => {
@@ -755,59 +798,35 @@ const CandidateInterviewFlow: React.FC = () => {
         try {
           const res = await fetch(cloudinaryUrl);
           const blob = await res.blob();
+          const [blobBase64, parsedResumeText] = await Promise.all([
+            getBlobAsBase64(blob),
+            extractResumeText(blob)
+          ]);
 
-          // If it's a PDF, parse it to text for better AI context
-          if (blob.type === 'application/pdf') {
-            // Don't await this, let it run in the background while base64 is processed
-            parsePdfToText(blob).then(text => resumeTextContent = text);
-          }
-
-          const getBlobAsBase64 = (b: Blob): Promise<string> => {
-            return new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.readAsDataURL(b);
-              reader.onload = () => resolve((reader.result as string).split(',')[1]);
-              reader.onerror = error => reject(error);
-            });
-          };
-          base64String = await getBlobAsBase64(blob);
+          base64String = blobBase64;
           resumeMimeType = blob.type || 'application/pdf';
+          resumeTextContent = parsedResumeText;
         } catch (error) {
           console.error("Error fetching Cloudinary PDF:", error);
           throw new Error("Failed to process the uploaded resume.");
         }
       } else if (submittedFile) {
         setLoadingMsg("Uploading and parsing your resume...");
+        const uploadPromise = uploadToCloudinary(submittedFile, 'auto').catch((error) => {
+          console.error("Resume cloudinary upload failed:", error);
+          return null;
+        });
 
-        if (submittedFile.type === 'application/pdf') {
-          resumeTextContent = await parsePdfToText(submittedFile);
-        } else if (submittedFile.type.startsWith('text/')) {
-          resumeTextContent = await submittedFile.text();
-        }
+        const [{ base64, url }, parsedResumeText, cloudinaryResumeUrl] = await Promise.all([
+          getFileAsBase64(submittedFile),
+          extractResumeText(submittedFile),
+          uploadPromise
+        ]);
 
-        const getFileAsBase64 = (file: File): Promise<{ base64: string, url: string }> => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => {
-              const url = reader.result as string;
-              const base64 = url.split(',')[1];
-              resolve({ base64, url });
-            };
-            reader.onerror = (error) => reject(error);
-          });
-        };
-        const { base64, url } = await getFileAsBase64(submittedFile);
         base64String = base64;
         resumeMimeType = submittedFile.type;
-        try {
-          const cloudinaryResumeUrl = await uploadToCloudinary(submittedFile, 'auto');
-          console.log("Cloudinary Public Resume URL:", cloudinaryResumeUrl);
-          resumeUrlToSave = cloudinaryResumeUrl;
-        } catch (e) {
-          console.error("Resume cloudinary upload failed:", e);
-          resumeUrlToSave = url;
-        }
+        resumeTextContent = parsedResumeText;
+        resumeUrlToSave = cloudinaryResumeUrl || url;
       } else if (userProfile) {
         setLoadingMsg("Synthesizing your profile data for AI...");
         const profileText = `[Candidate Profile Data]\nName: ${submittedInfo.name}\nEmail: ${submittedInfo.email}\nExperience: ${userProfile.experience || 0} Years\nSkills: ${(userProfile.skills || []).join(', ')}`;
@@ -848,6 +867,7 @@ const CandidateInterviewFlow: React.FC = () => {
         videoURLs: Array(questions.length).fill(null),
         transcriptIds: Array(questions.length).fill(null),
         transcriptTexts: Array(questions.length).fill(null),
+        pendingResponseCount: 0,
       }));
       setStep('instructions');
     } catch (err: any) {
@@ -876,7 +896,7 @@ const CandidateInterviewFlow: React.FC = () => {
     img.onload = () => {
       const duration = (Date.now() - start) / 1000;
       const speed = (50 * 8) / duration;
-      setSpeedStatus(speed > 1000 ? "Excellent 🚀" : speed > 500 ? "Good 🟢" : "Weak 🔴");
+      setSpeedStatus(speed > 1000 ? "Excellent" : speed > 500 ? "Good" : "Weak");
     };
     img.src = "https://i.ibb.co/3y9DKsB6/Yellow-and-Black-Illustrative-Education-Logo-1.png?t=" + start;
   };
@@ -991,8 +1011,8 @@ const CandidateInterviewFlow: React.FC = () => {
       <ActiveInterviewSession
         state={interviewState}
         setState={setInterviewState}
-        onFinish={(stats: any) => {
-          setCvStats(stats);
+        onFinish={(result?: { terminated?: boolean }) => {
+          setInterviewTerminated(Boolean(result?.terminated));
           setStep('finish');
         }}
         onTabSwitch={() => setTabSwitches(prev => prev + 1)}
@@ -1001,7 +1021,7 @@ const CandidateInterviewFlow: React.FC = () => {
   }
 
   if (step === 'finish') {
-    return <InterviewSubmission state={interviewState} tabSwitches={tabSwitches} interviewId={interviewId!} candidateInfo={candidateInfo} cvStats={cvStats} />;
+    return <InterviewSubmission state={interviewState} tabSwitches={tabSwitches} interviewId={interviewId!} candidateInfo={candidateInfo} terminated={interviewTerminated} />;
   }
 
   return null;
@@ -1011,21 +1031,22 @@ const CandidateInterviewFlow: React.FC = () => {
 const ActiveInterviewSession: React.FC<{
   state: InterviewState;
   setState: React.Dispatch<React.SetStateAction<InterviewState>>;
-  onFinish: (cvStats: any) => void;
+  onFinish: (result?: { terminated?: boolean }) => void;
   onTabSwitch: () => void;
 }> = ({ state, setState, onFinish, onTabSwitch }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const answerDeadlineRef = useRef<number | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_MS / 1000);
   const [countdown, setCountdown] = useState(5);
   const [processingVideo, setProcessingVideo] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const currentQ = state.questions[state.currentQuestionIndex];
-  const [faceApiReady, setFaceApiReady] = useState(false);
-  const [aiObservation, setAiObservation] = useState<string>('Initializing AI analysis...');
 
   const [tabWarning, setTabWarning] = useState<string | null>(null);
   const tabWarningTimerRef = useRef<any>(null);
@@ -1033,7 +1054,71 @@ const ActiveInterviewSession: React.FC<{
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenEscapes, setFullscreenEscapes] = useState(0);
   const [isTerminated, setIsTerminated] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
   const hasEnteredFullscreenRef = useRef(false);
+  const sessionReady = isFullscreen && cameraReady && !isTerminated;
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      setIsStopping(true);
+      answerDeadlineRef.current = null;
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const syncTimeLeftFromDeadline = () => {
+    const deadline = answerDeadlineRef.current;
+    if (!deadline) return;
+
+    const remainingSeconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    setTimeLeft(remainingSeconds);
+
+    if (remainingSeconds === 0 && mediaRecorderRef.current?.state !== 'inactive') {
+      stopRecording();
+    }
+  };
+
+  const processRecordedAnswer = async (blob: Blob, questionIndex: number, language: string) => {
+    let videoUrl: string | null = null;
+    let transcriptId: string | null = null;
+    let transcriptText: string | null = null;
+
+    try {
+      videoUrl = await uploadToCloudinary(blob, 'video');
+      if (videoUrl) {
+        transcriptId = await requestTranscription(videoUrl, language);
+      } else {
+        transcriptText = '(Video upload failed.)';
+      }
+    } catch (error) {
+      console.error("Upload/transcription error:", error);
+      transcriptText = '(Video upload or transcription setup failed.)';
+    } finally {
+      setState(prev => {
+        const nextVideoUrls = [...prev.videoURLs];
+        const nextTranscriptIds = [...prev.transcriptIds];
+        const nextTranscriptTexts = prev.transcriptTexts
+          ? [...prev.transcriptTexts]
+          : Array(prev.questions.length).fill(null);
+
+        nextVideoUrls[questionIndex] = videoUrl;
+        nextTranscriptIds[questionIndex] = transcriptId;
+
+        if (transcriptText) {
+          nextTranscriptTexts[questionIndex] = transcriptText;
+        }
+
+        return {
+          ...prev,
+          videoURLs: nextVideoUrls,
+          transcriptIds: nextTranscriptIds,
+          transcriptTexts: nextTranscriptTexts,
+          pendingResponseCount: Math.max((prev.pendingResponseCount ?? 1) - 1, 0),
+        };
+      });
+    }
+  };
 
   // Anti-cheating & Fullscreen effect
   useEffect(() => {
@@ -1071,168 +1156,53 @@ const ActiveInterviewSession: React.FC<{
     if (isTerminated) return;
 
     const handleFullscreenChange = () => {
-      const isFS = !!document.fullscreenElement;
+      const isFS = !!getFullscreenElement();
       setIsFullscreen(isFS);
       
       if (isFS) {
         hasEnteredFullscreenRef.current = true;
+        setFullscreenError(null);
       } else if (hasEnteredFullscreenRef.current) {
         setFullscreenEscapes(prev => {
           const newCount = prev + 1;
           if (newCount >= 3) {
             setIsTerminated(true);
-            const total = cvDataRef.current.totalFrames || 1;
-            const finalStats = {
-              eyeContactScore: Math.round((cvDataRef.current.eyeContactFrames / total) * 100),
-              confidenceScore: Math.round(cvDataRef.current.confidenceScoreAcc / total),
-              facesDetected: cvDataRef.current.facesDetectedMax,
-              expressions: cvDataRef.current.expressions,
-              terminated: true
-            };
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
               mediaRecorderRef.current.stop();
             }
-            onFinish(finalStats);
+            onFinish({ terminated: true });
           }
           return newCount;
         });
       }
     };
 
+    handleFullscreenChange();
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [isTerminated, onFinish]);
-
-  // Computer Vision State Refs (Simulating OpenCV)
-  const cvDataRef = useRef({
-    eyeContactFrames: 0,
-    totalFrames: 0,
-    confidenceScoreAcc: 0,
-    facesDetectedMax: 0,
-    expressions: { neutral: 0, happy: 0, surprised: 0, fearful: 0, sad: 0, angry: 0, disgusted: 0 } as Record<string, number>
-  });
-
-  // Load FaceAPI
-  useEffect(() => {
-    loadFaceAPI(async () => {
-      const faceapi = (window as any).faceapi;
-      try {
-        // Load models from CDN
-        const modelUrl = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-        await faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl);
-        await faceapi.nets.faceExpressionNet.loadFromUri(modelUrl);
-        console.log("FaceAPI Models Loaded");
-        setFaceApiReady(true);
-      } catch (e) {
-        console.error("Error loading FaceAPI models", e);
-      }
-    });
-  }, []);
-
-  // Real AI Analysis Loop
-  useEffect(() => {
-    if (!isRecording || !faceApiReady || !videoRef.current) return;
-
-    const faceapi = (window as any).faceapi;
-    const video = videoRef.current;
-
-    // Low-spec: 160×120 canvas for pixel diff — 4× fewer pixels than 320×240, 4× faster loop.
-    const canvas = document.createElement('canvas');
-    canvas.width = 160;
-    canvas.height = 120;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: false });
-    let prevFrame: Uint8ClampedArray | null = null;
-
-    // Low-spec optimization: 1500ms interval = ~0.67 FPS analysis.
-    // Helio G85 / Dimensity 700 cannot sustain 2 FPS of ML inference without dropping the JS timer.
-    // 0.67 FPS still gives reliable eye-contact and expression data over a 2-minute session.
-    const interval = setInterval(async () => {
-      try {
-        if (video.paused || video.ended || !ctx) return;
-
-        // 1. Face Analysis
-        // Using TinyFaceDetector for speed
-        const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
-
-        cvDataRef.current.totalFrames++;
-
-        if (detections && detections.length > 0) {
-          // Assume the largest face is the candidate
-          const mainFace = detections[0];
-
-          // Eye Contact (Proxy: Face detected = looking at screen)
-          cvDataRef.current.eyeContactFrames++;
-
-          // Person Detection
-          cvDataRef.current.facesDetectedMax = Math.max(cvDataRef.current.facesDetectedMax, detections.length);
-
-          // Expressions
-          const expr = mainFace.expressions;
-          // Find dominant expression
-          const sorted = Object.entries(expr).sort((a: any, b: any) => b[1] - a[1]);
-          const dominant = sorted[0][0]; // e.g., 'neutral'
-          if (cvDataRef.current.expressions[dominant] !== undefined) {
-            cvDataRef.current.expressions[dominant]++;
-          }
-          // Surface existing CV data for display (UI only)
-          const faceCount = detections.length;
-          const eyePct = Math.round((cvDataRef.current.eyeContactFrames / cvDataRef.current.totalFrames) * 100);
-          setAiObservation(
-            faceCount > 1
-              ? `⚠️ WARNING: ${faceCount} faces detected! Only the candidate should be visible.`
-              : `✅ Face detected • Eye contact: ${eyePct}% • Expression: ${dominant} • Confidence tracking active`
-          );
-        }
-        if (!detections || detections.length === 0) {
-          setAiObservation('⚠️ No face detected — Please look at the camera');
-        }
-
-        // 2. Motion Analysis (Confidence)
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-
-        if (prevFrame) {
-          let diff = 0;
-          // Stride=8: sample every 2nd pixel (RGBA=4 bytes, ×2 = skip odd pixels).
-          // 4× faster than stride=4, still accurate for motion detection.
-          for (let i = 0; i < frame.length; i += 8) {
-            if (
-              Math.abs(frame[i]     - prevFrame[i])     > 20 ||
-              Math.abs(frame[i + 1] - prevFrame[i + 1]) > 20 ||
-              Math.abs(frame[i + 2] - prevFrame[i + 2]) > 20
-            ) diff++;
-          }
-          const motionPercent = diff / (canvas.width * canvas.height);
-          // Confidence score: High motion = Low confidence (fidgeting)
-          // Baseline: 0 motion = 100 confidence. 
-          const score = Math.max(0, 100 - (motionPercent * 500));
-          cvDataRef.current.confidenceScoreAcc += score;
-        }
-        prevFrame = new Uint8ClampedArray(frame);
-
-      } catch (err) {
-        console.error("AI Processing Error", err);
-      }
-    }, 1500); // 0.67 FPS — sufficient for analysis, safe on low-RAM devices
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange as EventListener);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange as EventListener);
 
     return () => {
-      clearInterval(interval);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange as EventListener);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange as EventListener);
     };
-  }, [isRecording, faceApiReady]);
+  }, [isTerminated, onFinish]);
+
 
   // Tab Visibility
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
         onTabSwitch();
-        // Surface real-time warning to AI observation bar
-        const warning = '🚨 TAB SWITCH DETECTED — This activity has been recorded and will be flagged in your report.';
+        const warning = 'TAB SWITCH DETECTED - This activity has been recorded and will be flagged in your report.';
         setTabWarning(warning);
-        setAiObservation(warning);
         // Auto-clear the warning banner after 5 seconds
         if (tabWarningTimerRef.current) clearTimeout(tabWarningTimerRef.current);
         tabWarningTimerRef.current = setTimeout(() => setTabWarning(null), 5000);
       }
+
+      syncTimeLeftFromDeadline();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
@@ -1243,29 +1213,55 @@ const ActiveInterviewSession: React.FC<{
 
   // Camera
   useEffect(() => {
+    let isCancelled = false;
+
     const setupCamera = async () => {
+      setCameraReady(false);
+      setCameraError(null);
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError("This browser does not support camera/microphone recording.");
+        return;
+      }
+
       try {
-        // Low-spec optimization: 320×240 reduces GPU/RAM pressure significantly.
-        // Audio-only track is sufficient for transcription; low video res is fine for proctoring.
+        // Low-spec optimization: 320x240 reduces GPU/RAM pressure significantly.
+        // Low video resolution is sufficient for recording and transcription.
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15, max: 20 } },
           audio: true
         });
+
+        if (isCancelled) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
         streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      } catch (err) { alert("Camera permission denied. Please allow access."); }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => undefined);
+        }
+        setCameraReady(true);
+      } catch (error) {
+        console.error("Camera setup error:", error);
+        if (!isCancelled) {
+          setCameraError("Camera and microphone access is required to continue.");
+        }
+      }
     };
     setupCamera();
     return () => {
+      isCancelled = true;
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       speak.stop();
     };
   }, []);
 
-  // TTS auto-play — Kokoro TTS (English) / Web Speech API (Hindi, Marathi)
+  // TTS auto-play - Kokoro TTS (English) / Web Speech API (Hindi, Marathi)
   // Reads the current question aloud as soon as it appears on screen.
   useEffect(() => {
-    if (!currentQ) return;
+    if (!currentQ || !sessionReady) return;
 
     // Map the short language code from candidate selection to BCP-47
     const langMap: Record<string, string> = { en: 'en', hi: 'hi-IN', mr: 'mr-IN' };
@@ -1284,94 +1280,119 @@ const ActiveInterviewSession: React.FC<{
       clearTimeout(timeout);
       speak.stop();
     };
-  }, [currentQ, state.language]);
+  }, [currentQ, state.language, sessionReady]);
 
 
 
   // Auto-Logic
   useEffect(() => {
+    if (!sessionReady || isRecording || processingVideo || isStopping) {
+      return;
+    }
+
     if (countdown > 0) {
       const t = setTimeout(() => setCountdown(c => c - 1), 1000);
       return () => clearTimeout(t);
-    } else if (countdown === 0 && !isRecording && !processingVideo && !isStopping) {
+    } else if (countdown === 0) {
       startRecording();
     }
-  }, [countdown, isRecording, processingVideo, isStopping]);
+  }, [countdown, sessionReady, isRecording, processingVideo, isStopping]);
 
   useEffect(() => {
-    if (isRecording && timeLeft > 0 && isFullscreen && !isTerminated) {
-      const t = setTimeout(() => setTimeLeft(prev => prev - 1), 1000);
-      return () => clearTimeout(t);
-    } else if (isRecording && Math.floor(timeLeft) === 0) {
-      stopRecording();
-    }
-  }, [isRecording, timeLeft, isFullscreen, isTerminated]);
+    if (!isRecording || isTerminated) return;
+
+    syncTimeLeftFromDeadline();
+    const timer = window.setInterval(syncTimeLeftFromDeadline, 1000);
+    document.addEventListener('visibilitychange', syncTimeLeftFromDeadline);
+    window.addEventListener('focus', syncTimeLeftFromDeadline);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', syncTimeLeftFromDeadline);
+      window.removeEventListener('focus', syncTimeLeftFromDeadline);
+    };
+  }, [isRecording, isTerminated]);
 
   const startRecording = () => {
-    if (!streamRef.current) return;
+    if (!sessionReady || !streamRef.current) return;
+    if (typeof MediaRecorder === 'undefined') {
+      setCameraError("This browser does not support in-browser recording.");
+      return;
+    }
     
-    // Low-spec: 150kbps is sufficient for proctoring; saves encode CPU and upload time.
+    // Low-spec: 150kbps keeps upload and encode costs low on weaker devices.
     let options: any = { videoBitsPerSecond: 150_000 };
-    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+    if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
         options.mimeType = 'video/webm;codecs=vp8,opus';
-    } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+    } else if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported('video/mp4')) {
         options.mimeType = 'video/mp4';
     }
 
-    const recorder = new MediaRecorder(streamRef.current, options);
+    const questionIndex = state.currentQuestionIndex;
+    const isLastQuestion = questionIndex >= state.questions.length - 1;
+    let recorder: MediaRecorder;
+
+    try {
+      recorder = new MediaRecorder(streamRef.current, options);
+    } catch (error) {
+      console.error("MediaRecorder setup error:", error);
+      setCameraError("Recording could not be started on this browser/device.");
+      return;
+    }
+
+    chunksRef.current = [];
     recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-    recorder.onstop = async () => {
-      setProcessingVideo(true);
+    recorder.onerror = (error) => {
+      console.error("Recorder error:", error);
+      answerDeadlineRef.current = null;
+      setIsRecording(false);
+      setIsStopping(false);
+      setProcessingVideo(false);
+      setCameraError("Recording failed. Please refresh and try again.");
+    };
+    recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
       chunksRef.current = [];
-      let videoUrl: string | null = null;
-      let transcriptId: string | null = null;
-      try {
-        videoUrl = await uploadToCloudinary(blob, 'video');
-        if (videoUrl) {
-          transcriptId = await requestTranscription(videoUrl, state.language);
-        }
-      } catch (err) { console.error("Upload error", err); }
-
-      const idx = state.currentQuestionIndex;
-      const isLast = idx >= state.questions.length - 1;
+      answerDeadlineRef.current = null;
 
       setState(prev => {
-        const newVids = [...prev.videoURLs]; newVids[idx] = videoUrl;
-        const newTrans = [...prev.transcriptIds]; newTrans[idx] = transcriptId;
-        const newTexts = [...prev.transcriptTexts]; newTexts[idx] = null;
-        const newAns = [...prev.answers]; newAns[idx] = "Answered";
-        return { ...prev, videoURLs: newVids, transcriptIds: newTrans, transcriptTexts: newTexts, answers: newAns, currentQuestionIndex: isLast ? idx : idx + 1 };
+        const nextAnswers = [...prev.answers];
+        const nextTranscriptTexts = prev.transcriptTexts
+          ? [...prev.transcriptTexts]
+          : Array(prev.questions.length).fill(null);
+
+        nextAnswers[questionIndex] = "Answered";
+        nextTranscriptTexts[questionIndex] = null;
+
+        return {
+          ...prev,
+          answers: nextAnswers,
+          transcriptTexts: nextTranscriptTexts,
+          currentQuestionIndex: isLastQuestion ? questionIndex : questionIndex + 1,
+          pendingResponseCount: (prev.pendingResponseCount ?? 0) + 1,
+        };
       });
 
+      void processRecordedAnswer(blob, questionIndex, state.language);
       setProcessingVideo(false);
       setIsStopping(false);
-      if (isLast) {
-        // Calculate final stats
-        const total = cvDataRef.current.totalFrames || 1;
-        const finalStats = {
-          eyeContactScore: Math.round((cvDataRef.current.eyeContactFrames / total) * 100),
-          confidenceScore: Math.round(cvDataRef.current.confidenceScoreAcc / total),
-          facesDetected: cvDataRef.current.facesDetectedMax,
-          expressions: cvDataRef.current.expressions
-        };
-        onFinish(finalStats);
-      }
-      else {
+      if (isLastQuestion) {
+        onFinish();
+      } else {
         setCountdown(5);
         setTimeLeft(QUESTION_TIME_MS / 1000);
       }
     };
     mediaRecorderRef.current = recorder;
-    recorder.start();
-    setIsRecording(true);
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      setIsStopping(true);
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+    try {
+      recorder.start();
+      answerDeadlineRef.current = Date.now() + QUESTION_TIME_MS;
+      setTimeLeft(QUESTION_TIME_MS / 1000);
+      setIsRecording(true);
+      setCameraError(null);
+    } catch (error) {
+      console.error("Recorder start error:", error);
+      setCameraError("Recording could not be started on this browser/device.");
     }
   };
 
@@ -1384,14 +1405,21 @@ const ActiveInterviewSession: React.FC<{
             <i className="fas fa-exclamation-triangle text-5xl text-yellow-500 mb-4 animate-pulse"></i>
             <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">Fullscreen Required</h2>
             <p className="text-gray-300 mb-6 font-medium text-xs sm:text-sm leading-relaxed">
-              {hasEnteredFullscreenRef.current 
-                ? `You have exited fullscreen mode. The timer is paused. You have ${3 - fullscreenEscapes} escape(s) remaining before automatic termination.`
-                : "This assessment must be taken in fullscreen mode to ensure a secure environment. Please enter fullscreen to start."}
+              {cameraError || fullscreenError || (
+                hasEnteredFullscreenRef.current
+                  ? `You have exited fullscreen mode. You have ${3 - fullscreenEscapes} escape(s) remaining before automatic termination.`
+                  : "This assessment must be taken in fullscreen mode to ensure a secure environment. Please enter fullscreen to start."
+              )}
             </p>
             <button 
               onClick={async () => {
+                setFullscreenError(null);
                 try {
-                  const docEl = document.documentElement as any;
+                  const docEl = document.documentElement as HTMLElement & {
+                    webkitRequestFullscreen?: () => Promise<void>;
+                    msRequestFullscreen?: () => Promise<void>;
+                  };
+
                   if (docEl.requestFullscreen) {
                     await docEl.requestFullscreen();
                   } else if (docEl.webkitRequestFullscreen) {
@@ -1399,14 +1427,11 @@ const ActiveInterviewSession: React.FC<{
                   } else if (docEl.msRequestFullscreen) {
                     await docEl.msRequestFullscreen();
                   } else {
-                    setIsFullscreen(true);
-                    hasEnteredFullscreenRef.current = true;
-                    return;
+                    setFullscreenError("Fullscreen mode is not supported on this browser/device.");
                   }
                 } catch (err) {
                   console.error("Fullscreen error:", err);
-                  setIsFullscreen(true);
-                  hasEnteredFullscreenRef.current = true;
+                  setFullscreenError("Fullscreen could not be enabled. Please allow fullscreen and try again.");
                 }
               }}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2"
@@ -1430,17 +1455,25 @@ const ActiveInterviewSession: React.FC<{
     >
       {renderFullscreenOverlay()}
 
-      {/* ── MAIN CONTENT: Camera (Left) + Question (Right) ── */}
+      {cameraError && (
+        <div className="px-2 md:px-3 pt-2 md:pt-3">
+          <div className="w-full px-3 md:px-5 py-2.5 md:py-3 bg-red-50 dark:bg-red-900/30 rounded-lg md:rounded-xl border border-red-200 dark:border-red-700/50 shadow-sm text-red-700 dark:text-red-300 text-xs md:text-sm font-medium">
+            {cameraError}
+          </div>
+        </div>
+      )}
+
+      {/* Main content: camera (left) + question (right) */}
       <div className="flex-1 flex flex-col md:flex-row gap-2 md:gap-3 p-2 md:p-3 overflow-hidden min-h-0">
 
-        {/* ═══ LEFT PANEL: Camera Feed ═══ */}
+        {/* Left panel: camera feed */}
         <div className="w-full md:w-5/12 flex flex-col gap-1.5 md:gap-3 shrink-0 md:shrink md:min-h-0">
           {/* Camera Card */}
           <div className="relative min-h-[140px] h-[30vh] md:h-auto md:flex-1 md:min-h-[240px] bg-gray-900 rounded-xl md:rounded-2xl overflow-hidden border border-gray-700/50 shadow-xl">
             <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform scale-x-[-1]" />
 
             {/* Countdown Overlay (scoped to camera) */}
-            {countdown > 0 && (
+            {sessionReady && countdown > 0 && (
               <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-xl md:rounded-2xl">
                 <p className="text-white/80 text-sm md:text-lg font-light mb-1 md:mb-2 tracking-widest uppercase">Get Ready</p>
                 <span className="text-5xl md:text-8xl font-black text-white" style={{ animationDuration: '1s', animation: 'pulse 1s ease-in-out infinite' }}>{countdown}</span>
@@ -1463,47 +1496,25 @@ const ActiveInterviewSession: React.FC<{
                   <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-red-500 rounded-full"></div>
                   REC
                 </div>
+              ) : !cameraReady ? (
+                <div className="flex items-center gap-1 md:gap-1.5 bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 px-2 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[10px] md:text-[11px] font-bold uppercase tracking-wider">
+                  <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  INITIALIZING
+                </div>
               ) : (
                 <div className="flex items-center gap-1 md:gap-1.5 bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 px-2 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[10px] md:text-[11px] font-medium">
                   <div className="w-1.5 md:w-2 h-1.5 md:h-2 bg-gray-400 rounded-full"></div>
                   STANDBY
                 </div>
               )}
-              {/* AI Status */}
-              <div className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[10px] md:text-[11px] font-mono font-semibold ${faceApiReady ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20'}`}>
-                <div className={`w-1.5 h-1.5 rounded-full ${faceApiReady ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`}></div>
-                <span className="hidden sm:inline">{faceApiReady ? 'AI ACTIVE' : 'LOADING...'}</span>
-                <span className="sm:hidden">{faceApiReady ? 'AI' : '...'}</span>
-              </div>
             </div>
-          </div>
-
-          {/* OpenCV Tracking Info — Hidden on mobile to save vertical space */}
-          <div className="hidden md:block px-4 py-3 bg-white dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700/50 shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-5 h-5 rounded-md bg-blue-500/15 flex items-center justify-center">
-                <i className="fas fa-eye text-blue-500 text-[10px]"></i>
-              </div>
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Live AI Tracking</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">Eye Contact</p>
-                <p className="text-sm font-bold text-gray-800 dark:text-white">
-                  {cvDataRef.current.totalFrames > 0 ? `${Math.round((cvDataRef.current.eyeContactFrames / cvDataRef.current.totalFrames) * 100)}%` : '—'}
-                </p>
-              </div>
-              <div className="bg-gray-50 dark:bg-gray-700/40 rounded-lg px-3 py-2">
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">Faces Detected</p>
-                <p className="text-sm font-bold text-gray-800 dark:text-white">
-                  {cvDataRef.current.facesDetectedMax > 0 ? cvDataRef.current.facesDetectedMax : '—'}
-                </p>
-              </div>
+            <div className={`px-2 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[10px] md:text-[11px] font-mono font-semibold border ${isFullscreen ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20' : 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20'}`}>
+              {isFullscreen ? 'FULLSCREEN ON' : 'FULLSCREEN OFF'}
             </div>
           </div>
         </div>
 
-        {/* ═══ RIGHT PANEL: Question + Controls ═══ */}
+        {/* Right panel: question + controls */}
         <div className="w-full md:w-7/12 flex flex-col gap-2 md:gap-3 min-h-0 flex-1">
           {/* Question Card */}
           <div className="flex-1 flex flex-col bg-white dark:bg-gray-800/60 rounded-xl md:rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-xl overflow-hidden min-h-0">
@@ -1572,8 +1583,7 @@ const ActiveInterviewSession: React.FC<{
         </div>
       </div>
 
-      {/* ── BOTTOM PANEL: AI Observations ── */}
-      <div className="shrink-0 px-2 md:px-3 pb-2 md:pb-3 space-y-1.5 md:space-y-2">
+      <div className="shrink-0 px-2 md:px-3 pb-2 md:pb-3">
         {/* Tab-switch warning banner (red, real-time) */}
         {tabWarning && (
           <div className="w-full px-3 md:px-5 py-2 md:py-3 bg-red-50 dark:bg-red-900/30 rounded-lg md:rounded-xl border border-red-200 dark:border-red-700/50 shadow-sm flex items-center gap-2 md:gap-3 animate-pulse">
@@ -1581,7 +1591,7 @@ const ActiveInterviewSession: React.FC<{
               <i className="fas fa-exclamation-triangle text-red-500 text-[10px] md:text-xs"></i>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[9px] md:text-[10px] text-red-600 dark:text-red-400 uppercase tracking-widest font-bold mb-0.5">⚠ Security Alert</p>
+              <p className="text-[9px] md:text-[10px] text-red-600 dark:text-red-400 uppercase tracking-widest font-bold mb-0.5">Security Alert</p>
               <p className="text-xs md:text-sm text-red-700 dark:text-red-300 font-semibold truncate">{tabWarning}</p>
             </div>
             <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-mono font-bold shrink-0">
@@ -1590,26 +1600,6 @@ const ActiveInterviewSession: React.FC<{
             </div>
           </div>
         )}
-        {/* Normal AI observation bar */}
-        <div className={`w-full px-3 md:px-5 py-2 md:py-3 rounded-lg md:rounded-xl border shadow-sm flex items-center gap-2 md:gap-3 transition-colors duration-300 ${tabWarning
-          ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700/50'
-          : 'bg-white dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/50'
-          }`}>
-          <div className={`w-5 md:w-7 h-5 md:h-7 rounded-md md:rounded-lg flex items-center justify-center shrink-0 ${tabWarning ? 'bg-yellow-500/10 dark:bg-yellow-500/15' : 'bg-purple-500/10 dark:bg-purple-500/15'
-            }`}>
-            <i className={`fas text-[10px] md:text-xs ${tabWarning ? 'fa-shield-alt text-yellow-500' : 'fa-robot text-purple-500'}`}></i>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[9px] md:text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-widest font-medium mb-0.5">AI Observation</p>
-            <p className="text-xs md:text-sm text-gray-700 dark:text-gray-300 truncate">{aiObservation}</p>
-          </div>
-          {isRecording && (
-            <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 text-[10px] font-mono font-semibold shrink-0">
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-              LIVE
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -1621,8 +1611,8 @@ const InterviewSubmission: React.FC<{
   tabSwitches: number;
   interviewId: string;
   candidateInfo: CandidateInfo;
-  cvStats: any;
-}> = ({ state, tabSwitches, interviewId, candidateInfo, cvStats }) => {
+  terminated: boolean;
+}> = ({ state, tabSwitches, interviewId, candidateInfo, terminated }) => {
   const { user } = useAuth();
   const [status, setStatus] = useState("Finalizing transcripts...");
   const [showCompletionPopup, setShowCompletionPopup] = useState(false);
@@ -1630,10 +1620,15 @@ const InterviewSubmission: React.FC<{
   const navigate = useNavigate();
   const [factIndex, setFactIndex] = useState(0);
   const hasSubmittedRef = useRef(false);
+  const latestStateRef = useRef(state);
   const facts = [
     "The first computer bug was a real moth.", "Symbolics.com was the first domain.", "NASA's internet is 91 GB/s.",
     "The Firefox logo is a red panda.", "Email existed before the Web."
   ];
+
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     const i = setInterval(() => setFactIndex(p => (p + 1) % facts.length), 4000);
@@ -1641,59 +1636,75 @@ const InterviewSubmission: React.FC<{
   }, [facts.length]);
 
   useEffect(() => {
-    // Guard: only run once — object deps (state, candidateInfo, cvStats) cause
+    // Guard: only run once - object deps (state, candidateInfo, terminated) cause
     // React to re-fire this effect on every render, creating duplicate reports.
     if (hasSubmittedRef.current) return;
     hasSubmittedRef.current = true;
 
     const finalize = async () => {
-      try {
-        setStatus("Finalizing transcripts...");
-        const transcriptTexts = [...state.transcriptTexts];
-        
-        for (let i = 0; i < state.transcriptIds.length; i++) {
-          const tId = state.transcriptIds[i];
-          if (tId && !transcriptTexts[i]) {
-            let fetchStatus = 'processing';
-            let fetchedText = null;
-            let attempts = 0;
-            while ((fetchStatus === 'processing' || fetchStatus === 'queued') && attempts < 20) {
-              await new Promise(r => setTimeout(r, 3000));
-              const res = await fetchTranscriptText(tId);
-              fetchStatus = res.status;
-              if (res.status === 'completed' || res.status === 'error') {
-                fetchedText = res.text;
-              }
-              attempts++;
-            }
-            transcriptTexts[i] = fetchedText || '(Transcription timeout)';
+      const waitForPendingResponses = async () => {
+        let attempts = 0;
+
+        while ((latestStateRef.current.pendingResponseCount ?? 0) > 0 && attempts < 180) {
+          const pendingResponses = latestStateRef.current.pendingResponseCount ?? 0;
+          setStatus(`Processing ${pendingResponses} recorded answer${pendingResponses === 1 ? '' : 's'}...`);
+          await sleep(1000);
+          attempts++;
+        }
+      };
+
+      const resolveTranscriptText = async (transcriptId: string | null, existingText: string | null) => {
+        if (!transcriptId) {
+          return existingText || '(Transcript unavailable)';
+        }
+
+        if (existingText) {
+          return existingText;
+        }
+
+        for (let attempts = 0; attempts < TRANSCRIPT_POLL_ATTEMPTS; attempts++) {
+          await sleep(TRANSCRIPT_POLL_DELAY_MS);
+          const res = await fetchTranscriptText(transcriptId);
+
+          if (res.status === 'completed' || res.status === 'error') {
+            return res.text || '(No speech detected)';
           }
         }
+
+        return '(Transcription timeout)';
+      };
+
+      try {
+        await waitForPendingResponses();
+        setStatus("Finalizing transcripts...");
+        const finalState = latestStateRef.current;
+        const transcriptTexts = await Promise.all(
+          finalState.questions.map((_, index) =>
+            resolveTranscriptText(
+              finalState.transcriptIds[index] ?? null,
+              finalState.transcriptTexts?.[index] ?? null
+            )
+          )
+        );
         
         setStatus("AI Analyzing performance...");
-        let base64Resume = state.candidateResumeBase64;
-        let resumeTextContent = (state as any).candidateResumeText;
+        let base64Resume = finalState.candidateResumeBase64;
+        let resumeTextContent = finalState.candidateResumeText;
         
         if (!base64Resume) {
           // Fallback to fetch resume if not already base64'd (e.g. from Cloudinary URL)
-          if (!state.candidateResumeURL) {
+          if (!finalState.candidateResumeURL) {
               throw new Error("Candidate resume URL is missing for feedback generation.");
           }
 
-          const resp = await fetch(state.candidateResumeURL);
+          const resp = await fetch(finalState.candidateResumeURL);
           const blob = await resp.blob();
 
-          if (blob.type === 'application/pdf' && !resumeTextContent) {
-            resumeTextContent = await parsePdfToText(blob);
-          } else if (blob.type.startsWith('text/') && !resumeTextContent) {
-            resumeTextContent = await blob.text();
+          if (!resumeTextContent) {
+            resumeTextContent = await extractResumeText(blob);
           }
 
-          base64Resume = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-          });
+          base64Resume = await getBlobAsBase64(blob);
         }
 
         const candidateExperience = (candidateInfo.experienceType === 'experienced' && candidateInfo.totalExperienceYears)
@@ -1701,12 +1712,12 @@ const InterviewSubmission: React.FC<{
             : "0 years";
 
         const feedbackRaw = await generateFeedback(
-          state.jobTitle,
-          state.jobDescription,
+          finalState.jobTitle,
+          finalState.jobDescription,
           candidateExperience,
           base64Resume,
-          state.candidateResumeMimeType!,
-          state.questions,
+          finalState.candidateResumeMimeType!,
+          finalState.questions,
           transcriptTexts,
           resumeTextContent
         );
@@ -1730,21 +1741,22 @@ const InterviewSubmission: React.FC<{
 
         setStatus("Saving Report...");
         const attemptData = {
-            ...state,
+            ...finalState,
             candidateResumeBase64: null, // Do not bloat Firebase storage
             transcriptTexts,
+            pendingResponseCount: 0,
             feedback: feedbackRaw,
             score: `${overallScoreNum}/100`,
             resumeScore: `${resumeScoreNum}/100`,
             qnaScore: `${qnaScoreNum}/100`,
             candidateInfo,
-            status: cvStats?.terminated ? 'Terminated' : 'Completed', 
+            status: terminated ? 'Terminated' : 'Completed',
             submittedAt: serverTimestamp(), 
             candidateUID: user?.uid || null,
             interviewId: interviewId,
             jobId: interviewId,
             isMock: state.isMock || false,
-            meta: { tabSwitchCount: tabSwitches, cvStats }
+            meta: { tabSwitchCount: tabSwitches }
         }
         const docRef = await addDoc(collection(db, 'interviews', interviewId, 'attempts'), attemptData);
         setReportUrl(`/report/${interviewId}/${docRef.id}`);
@@ -1768,10 +1780,10 @@ const InterviewSubmission: React.FC<{
           <i className="fas fa-check absolute inset-0 flex items-center justify-center text-3xl text-green-500"></i>
         </div>
         <h2 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">
-          {cvStats?.terminated ? 'Interview Terminated' : 'Interview Complete'}
+          {terminated ? 'Interview Terminated' : 'Interview Complete'}
         </h2>
-        <p className={`mb-12 animate-pulse ${cvStats?.terminated ? 'text-red-500 font-bold' : 'text-gray-500 dark:text-gray-400'}`}>
-          {cvStats?.terminated ? 'Session revoked due to security violations.' : status}
+        <p className={`mb-12 animate-pulse ${terminated ? 'text-red-500 font-bold' : 'text-gray-500 dark:text-gray-400'}`}>
+          {terminated ? 'Session revoked due to security violations.' : status}
         </p>
 
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl max-w-lg text-center border border-gray-100 dark:border-gray-700 shadow-xl">

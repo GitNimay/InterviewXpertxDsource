@@ -67,8 +67,8 @@ const Navbar: React.FC = () => {
           `}
         >
           {/* Logo */}
-          <Link to="/" className="flex items-center">
-            <Logo className={`rounded-xl transition-all duration-500 ${isScrolled ? 'w-6 h-6 md:w-7 md:h-7' : 'w-8 h-8'}`} isDark={isDark} />
+          <Link to="/" className="flex items-center shrink-0">
+            <Logo className={`transition-all duration-500 ${isScrolled ? 'w-[128px] md:w-[148px] h-auto' : 'w-[144px] md:w-[172px] h-auto'}`} isDark={isDark} />
           </Link>
 
           {/* Desktop Links */}

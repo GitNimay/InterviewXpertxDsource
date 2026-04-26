@@ -385,9 +385,9 @@ const AuthPage: React.FC = () => {
 
                 <img
                   ref={logoRef}
-                  src="/logo-white.png"
-                  alt="InterviewXpert Logo"
-                  className="w-16 h-16 rounded-xl mb-6 shadow-xl shadow-yellow-500/10 opacity-0"
+                  src="/logo-partnership-dark.png"
+                  alt="InterviewXpert X DSource partnership logo"
+                  className="w-56 max-w-full h-auto mb-6 shadow-xl shadow-cyan-500/10 opacity-0"
                 />
 
                 <h3

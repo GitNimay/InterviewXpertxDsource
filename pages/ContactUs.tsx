@@ -45,9 +45,8 @@ const ContactUsContent: React.FC = () => {
             </div>
 
             <nav className={`relative z-50 flex items-center justify-between px-6 py-4 border-b transition-colors ${isDark ? 'border-white/5 bg-[#0a0a0f]/80' : 'border-black/5 bg-white/80'} backdrop-blur-md`}>
-                <Link to="/" className="flex items-center gap-2 group">
-                    <Logo className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg" isDark={isDark} />
-                    <span className={`font-bold text-lg tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>InterviewXpert</span>
+                <Link to="/" className="flex items-center group">
+                    <Logo className="w-[136px] sm:w-[164px] h-auto" isDark={isDark} />
                 </Link>
                 <div className="flex items-center gap-3">
                     <Link to="/" className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-full transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-black/5'}`}>

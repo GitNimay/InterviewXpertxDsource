@@ -13,7 +13,6 @@ interface InterviewReportModalProps {
 const InterviewReportModal: React.FC<InterviewReportModalProps> = ({ interview, isOpen, onClose }) => {
     const { isDark } = useTheme();
     const [companyName, setCompanyName] = useState('');
-    const [cvStats, setCvStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -26,11 +25,6 @@ const InterviewReportModal: React.FC<InterviewReportModalProps> = ({ interview, 
                     if (jobSnap.exists()) {
                         setCompanyName(jobSnap.data().companyName);
                     }
-                }
-                // Check for cvStats in the interview document itself
-                const interviewSnap = await getDoc(doc(db, 'interviews', interview.id));
-                if (interviewSnap.exists() && interviewSnap.data().meta?.cvStats) {
-                    setCvStats(interviewSnap.data().meta.cvStats);
                 }
             } catch (e) {
                 console.error("Error fetching interview details:", e);
@@ -124,64 +118,6 @@ const InterviewReportModal: React.FC<InterviewReportModalProps> = ({ interview, 
                                 </div>
                             ))}
                         </div>
-
-                        {/* AI Visual Analysis */}
-                        {cvStats && (
-                            <div className={`${isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'} rounded-xl border overflow-hidden`}>
-                                <div className={`px-6 py-4 border-b ${isDark ? 'border-white/10' : 'border-gray-100'} flex items-center gap-3`}>
-                                    <div className={`w-8 h-8 rounded-full ${isDark ? 'bg-blue-900/30' : 'bg-blue-50'} flex items-center justify-center ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
-                                        <i className="fas fa-eye text-sm"></i>
-                                    </div>
-                                    <h2 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Visual Intelligence Analysis</h2>
-                                </div>
-                                <div className="p-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                        <div className="text-center">
-                                            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-2 font-medium`}>Eye Contact</div>
-                                            <div className={`relative w-20 h-20 mx-auto flex items-center justify-center text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                <svg className="w-full h-full absolute top-0 left-0 transform -rotate-90">
-                                                    <circle cx="50%" cy="50%" r="45%" stroke={isDark ? "#1f2937" : "#f3f4f6"} strokeWidth="5" fill="transparent" />
-                                                    <circle cx="50%" cy="50%" r="45%" stroke="#3b82f6" strokeWidth="5" fill="transparent" strokeDasharray={`${(cvStats.eyeContactScore / 100) * 283} 283`} strokeLinecap="round" />
-                                                </svg>
-                                                {cvStats.eyeContactScore}%
-                                            </div>
-                                        </div>
-                                        <div className="text-center">
-                                            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-2 font-medium`}>Confidence</div>
-                                            <div className={`relative w-20 h-20 mx-auto flex items-center justify-center text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                                <svg className="w-full h-full absolute top-0 left-0 transform -rotate-90">
-                                                    <circle cx="50%" cy="50%" r="45%" stroke={isDark ? "#1f2937" : "#f3f4f6"} strokeWidth="5" fill="transparent" />
-                                                    <circle cx="50%" cy="50%" r="45%" stroke="#8b5cf6" strokeWidth="5" fill="transparent" strokeDasharray={`${((cvStats.confidenceScore || 85) / 100) * 283} 283`} strokeLinecap="round" />
-                                                </svg>
-                                                {cvStats.confidenceScore || 85}%
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col items-center justify-center">
-                                            <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} mb-2 font-medium`}>Environment Check</div>
-                                            <div className={`px-4 py-2 rounded-lg border flex items-center gap-2 ${cvStats.facesDetected > 1
-                                                ? (isDark ? 'bg-red-900/30 border-red-800 text-red-400' : 'bg-red-50 border-red-200 text-red-700')
-                                                : (isDark ? 'bg-emerald-900/30 border-emerald-800 text-emerald-400' : 'bg-emerald-50 border-emerald-100 text-emerald-700')
-                                                }`}>
-                                                <i className={`fas ${cvStats.facesDetected > 1 ? 'fa-exclamation-triangle' : 'fa-check-circle'}`}></i>
-                                                <span className="font-semibold text-sm">{cvStats.facesDetected > 1 ? 'Multiple Faces' : 'Secure Environment'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {cvStats.expressions && (
-                                        <div className={`mt-6 pt-4 border-t ${isDark ? 'border-white/10' : 'border-gray-100'}`}>
-                                            <span className={`text-xs font-bold ${isDark ? 'text-gray-500' : 'text-gray-400'} uppercase tracking-wider block mb-2`}>Detected Expressions</span>
-                                            <div className="flex flex-wrap gap-2">
-                                                {Object.entries(cvStats.expressions).map(([expr, count]: [string, any]) => (
-                                                    <span key={expr} className={`px-3 py-1 ${isDark ? 'bg-white/5 text-gray-300 border-white/10' : 'bg-gray-50 text-gray-600 border-gray-100'} rounded-md text-xs border font-medium capitalize`}>
-                                                        {expr} <span className={`${isDark ? 'text-gray-500' : 'text-gray-400'} ml-1`}>({count})</span>
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
 
                         {/* AI Feedback */}
                         <div className={`${isDark ? 'bg-white/5 border-white/10' : 'bg-white border-gray-100'} rounded-xl border overflow-hidden`}>

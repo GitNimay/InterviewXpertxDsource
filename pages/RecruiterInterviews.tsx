@@ -30,6 +30,7 @@ const RecruiterInterviews: React.FC = () => {
   const [sendingEmails, setSendingEmails] = useState(false);
   const messageBox = useMessageBox();
   const navigate = useNavigate();
+  const actionButtonClass = 'inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#1a1a1a] text-gray-700 dark:text-gray-200 text-xs font-semibold hover:bg-white dark:hover:bg-gray-800 transition-colors';
 
   useEffect(() => {
     if (!user) {
@@ -234,26 +235,55 @@ const RecruiterInterviews: React.FC = () => {
             {interviews.map(interview => (
                 <div key={interview.id} className="bg-white dark:bg-[#111] rounded-2xl border border-gray-200 dark:border-white/5 shadow-sm p-6 flex flex-col">
                     <div className="flex-grow">
-                        <div className="flex justify-between items-start mb-4">
+                        <div className="flex flex-col gap-4 mb-4 lg:flex-row lg:items-start lg:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{interview.title}</h3>
                                 <p className="text-sm text-gray-500">{interview.department}</p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Link to={`/recruiter/interview/responses/${interview.id}`} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="View Responses">
-                                    <i className="fas fa-eye"></i>
+                            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                                <Link
+                                    to={`/recruiter/interview/responses/${interview.id}`}
+                                    className={actionButtonClass}
+                                    title="View Responses"
+                                >
+                                    <i className="fas fa-eye text-blue-500"></i>
+                                    <span>View Responses</span>
                                 </Link>
-                                <button onClick={() => openInviteModal(interview)} className="text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors" title="Invite">
-                                    <i className="fas fa-user-plus"></i>
+                                <button
+                                    type="button"
+                                    onClick={() => openInviteModal(interview)}
+                                    className={actionButtonClass}
+                                    title="Invite Candidates"
+                                >
+                                    <i className="fas fa-user-plus text-green-500"></i>
+                                    <span>Invite Candidates</span>
                                 </button>
-                                <Link to={`/interview/${interview.id}`} target="_blank" className="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Open Interview">
-                                    <i className="fas fa-external-link-alt"></i>
+                                <Link
+                                    to={`/interview/${interview.id}`}
+                                    target="_blank"
+                                    className={actionButtonClass}
+                                    title="Open Interview"
+                                >
+                                    <i className="fas fa-external-link-alt text-gray-500 dark:text-gray-300"></i>
+                                    <span>Open Interview</span>
                                 </Link>
-                                <button onClick={() => setEditingJobId(interview.id)} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit">
-                                    <i className="fas fa-pencil-alt"></i>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingJobId(interview.id)}
+                                    className={actionButtonClass}
+                                    title="Edit Interview"
+                                >
+                                    <i className="fas fa-pencil-alt text-amber-500"></i>
+                                    <span>Edit Interview</span>
                                 </button>
-                                <button onClick={() => handleDelete(interview.id)} className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors" title="Delete">
+                                <button
+                                    type="button"
+                                    onClick={() => handleDelete(interview.id)}
+                                    className={`${actionButtonClass} text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40`}
+                                    title="Delete Interview"
+                                >
                                     <i className="fas fa-trash"></i>
+                                    <span>Delete Interview</span>
                                 </button>
                             </div>
                         </div>

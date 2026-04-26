@@ -110,36 +110,38 @@ export interface Interview {
     completedAt: any;
   }
   
-  export interface InterviewSubmission {
-    id: string;
-    candidateInfo?: { name: string; email: string; resumeText?: string; language?: string; };
-    score: any;
-    resumeScore?: any;
-    qnaScore?: any;
-    feedback: string;
-    submittedAt?: any;
-    meta?: { cvStats?: any; tabSwitchCount?: number; };
-    questions?: string[];
-    videoURLs?: string[];
-    transcriptTexts?: string[];
-    candidateResumeURL?: string;
-  }
-  
-  export interface InterviewState {
-    jobId?: string;
-    jobTitle: string;
-    jobDescription: string;
-    questions: string[];
-    answers: string[];
-    videoURLs: string[];
-    transcriptIds: string[];
-    transcriptTexts?: string[];
-    candidateResumeURL: string | null;
-    candidateResumeMimeType: string | null;
-    candidateResumeBase64?: string | null;
-    language: string;
-    currentQuestionIndex: number;
-    isMock?: boolean;
-    terminated?: boolean;
-  }
+export interface InterviewSubmission {
+  id: string;
+  candidateInfo?: { name: string; email: string; resumeText?: string; language?: string; };
+  score: any;
+  resumeScore?: any;
+  qnaScore?: any;
+  feedback: string;
+  submittedAt?: any;
+  meta?: { tabSwitchCount?: number; };
+  questions?: string[];
+  videoURLs?: Array<string | null>;
+  transcriptTexts?: Array<string | null>;
+  candidateResumeURL?: string;
+}
+
+export interface InterviewState {
+  jobId?: string;
+  jobTitle: string;
+  jobDescription: string;
+  questions: string[];
+  answers: Array<string | null>;
+  videoURLs: Array<string | null>;
+  transcriptIds: Array<string | null>;
+  transcriptTexts?: Array<string | null>;
+  candidateResumeURL: string | null;
+  candidateResumeMimeType: string | null;
+  candidateResumeBase64?: string | null;
+  candidateResumeText?: string;
+  language: string;
+  currentQuestionIndex: number;
+  pendingResponseCount?: number;
+  isMock?: boolean;
+  terminated?: boolean;
+}
   

@@ -6,7 +6,7 @@ import { InterviewSubmission } from '../types';
 import { createPortal } from 'react-dom';
 import { jsPDF } from 'jspdf';
 import { useMessageBox } from '../components/MessageBox';
-import { ArrowLeft, Download, Share2, User, FileText, MessageSquare, Eye, Brain, BarChart, Shield, Video, CheckCircle, XCircle, Briefcase, MapPin, GraduationCap, DollarSign, Calendar, Award, Link as LinkIcon } from 'lucide-react';
+import { ArrowLeft, Download, Share2, User, FileText, MessageSquare, Brain, Shield, Video, CheckCircle, XCircle, Briefcase, MapPin, GraduationCap, DollarSign, Calendar, Award, Link as LinkIcon } from 'lucide-react';
 
 // New component for radial score display
 const ScoreCircle: React.FC<{ score: number; denom: number; color: 'green' | 'yellow' | 'red'; label: string }> = ({ score, denom, color, label }) => {
@@ -360,19 +360,10 @@ const InterviewReport: React.FC = () => {
         });
         y += 2;
 
-        // 6. BEHAVIORAL ANALYSIS
-        if (submission.meta?.cvStats) {
-            drawSectionHeader("Behavioral Analysis");
-            const bMetrics = [
-                { label: 'Eye Contact', value: `${submission.meta.cvStats.eyeContactScore ?? 'N/A'}%` },
-                { label: 'Confidence', value: `${submission.meta.cvStats.confidenceScore ?? 'N/A'}%` },
-                { label: 'Tab Switches', value: `${submission.meta.tabSwitchCount ?? 0}` },
-                { label: 'Faces Detected', value: `${submission.meta.cvStats.facesDetected ?? 'N/A'}` },
-            ];
-            const bCardW = (contentW - 12) / 4;
-            bMetrics.forEach((m, i) => {
-                drawInfoBox(m.label, m.value, margin + i * (bCardW + 4), y, bCardW);
-            });
+        // 6. SESSION INTEGRITY
+        if (submission.meta) {
+            drawSectionHeader("Session Integrity");
+            drawInfoBox('Tab Switches', `${submission.meta.tabSwitchCount ?? 0}`, margin, y, Math.min(contentW, 48));
             y += 24;
         }
 
@@ -664,14 +655,11 @@ const InterviewReport: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Behavioral Analysis Card */}
+                    {/* Session Integrity Card */}
                     <div className="bg-white dark:bg-white/5 rounded-2xl p-6 border border-gray-200 dark:border-white/10 shadow-sm">
-                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><BarChart size={20} className="text-primary"/> Behavioral Analysis</h2>
-                        <div className="grid grid-cols-2 gap-4">
-                            <BehavioralStat icon={<Eye size={20}/>} label="Eye Contact" value={`${submission.meta?.cvStats?.eyeContactScore ?? 'N/A'}%`} color="blue" />
-                            <BehavioralStat icon={<Brain size={20}/>} label="Confidence" value={`${submission.meta?.cvStats?.confidenceScore ?? 'N/A'}%`} color="purple" />
+                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Shield size={20} className="text-primary"/> Session Integrity</h2>
+                        <div className="grid grid-cols-1 gap-4">
                             <BehavioralStat icon={<Shield size={20}/>} label="Tab Switches" value={submission.meta?.tabSwitchCount ?? 0} color={submission.meta?.tabSwitchCount && submission.meta.tabSwitchCount > 0 ? 'red' : 'green'} />
-                            <BehavioralStat icon={<User size={20}/>} label="Faces Detected" value={submission.meta?.cvStats?.facesDetected ?? 'N/A'} color={submission.meta?.cvStats?.facesDetected === 1 ? 'green' : 'yellow'} />
                         </div>
                     </div>
                 </div>

@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
-    "@vladmandic/face-api": "^1.7.15",
     "clsx": "^2.1.1",
     "convertapi-js": "^1.0.8",
     "firebase": "^12.6.0",

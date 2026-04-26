@@ -92,7 +92,7 @@ const TestAccess: React.FC = () => {
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center p-4 ${isDark ? 'bg-[#0a0a0f]' : 'bg-gray-50'}`}>
       <div className="absolute top-6 left-6">
-        <Logo className="w-8 h-8" isDark={isDark} />
+        <Logo className="w-[118px] sm:w-[140px] h-auto" isDark={isDark} />
       </div>
       
       <div ref={containerRef} className="access-container w-full max-w-lg p-6 md:p-10 space-y-6 bg-white dark:bg-[#111] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10">

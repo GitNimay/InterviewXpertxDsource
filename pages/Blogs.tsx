@@ -93,7 +93,7 @@ const BlogsContent: React.FC = () => {
                     className="flex items-center transition-opacity hover:opacity-70"
                 >
                     <Logo
-                        className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg"
+                        className="w-[128px] sm:w-[156px] h-auto"
                         isDark={isDark}
                     />
                 </Link>
