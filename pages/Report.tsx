@@ -493,7 +493,7 @@ const InterviewReport: React.FC = () => {
                     </button>
                     <button 
                         onClick={handleDownloadPDF} 
-                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-all shadow-sm"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary-dark transition-all shadow-sm"
                     >
                         <Download size={16} /> Download PDF
                     </button>
@@ -674,7 +674,7 @@ const InterviewReport: React.FC = () => {
                             {/* Video side */}
                             <div className="w-full lg:w-80 flex-shrink-0 flex flex-col justify-between">
                                 <p className="font-bold text-gray-900 dark:text-white mb-3 flex items-start gap-2">
-                                    <span className="bg-primary text-white text-xs px-2 py-1 rounded-md">Q{index + 1}</span> 
+                                    <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded-md">Q{index + 1}</span> 
                                     <span>{q}</span>
                                 </p>
                                 {submission.videoURLs?.[index] ? (
