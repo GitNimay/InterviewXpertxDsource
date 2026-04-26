@@ -34,18 +34,28 @@ const InterviewResponses: React.FC = () => {
 
   const getScoreValue = (score: unknown): number => {
     let value = 0;
-    if (typeof score === 'number') value = score;
-    else if (typeof score === 'string') {
-      const parsed = parseInt(score.split('/')[0], 10);
-      value = isNaN(parsed) ? 0 : parsed;
+    let denominator = 10;
+
+    if (typeof score === 'number') {
+      value = score;
+      denominator = score > 10 ? 100 : 10;
+    } else if (typeof score === 'string') {
+      const [rawValue, rawDenominator] = score.split('/');
+      const parsedValue = parseFloat(rawValue);
+      const parsedDenominator = parseFloat(rawDenominator);
+
+      value = isNaN(parsedValue) ? 0 : parsedValue;
+      denominator = !isNaN(parsedDenominator) && parsedDenominator > 0
+        ? parsedDenominator
+        : value > 10
+          ? 100
+          : 10;
     }
-    return value / 10;
+
+    return denominator === 10 ? value : (value / denominator) * 10;
   };
 
-  const getScoreDenom = (score: unknown): string => {
-    if (typeof score === 'string' && score.includes('/')) return score.split('/')[1];
-    return '10';
-  };
+  const getScoreDenom = (): string => '10';
 
   const filteredAndSortedSubmissions = useMemo(() => {
     return submissions
