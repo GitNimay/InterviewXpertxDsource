@@ -561,7 +561,7 @@ const AdminDashboard: React.FC = () => {
                   setIsMobileSidebarOpen(false); 
                 }}
                 className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === item.id
-                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  ? 'bg-primary text-white dark:text-zinc-900 shadow-lg shadow-primary/20'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'
                   }`}
               >
@@ -570,7 +570,7 @@ const AdminDashboard: React.FC = () => {
                   {item.label}
                 </div>
                 {item.count !== undefined && (
-                  <span className={`px-2 py-0.5 rounded-md text-xs ${activeTab === item.id ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10'}`}>
+                  <span className={`px-2 py-0.5 rounded-md text-xs ${activeTab === item.id ? 'bg-white/20 dark:bg-black/10 text-white dark:text-zinc-900' : 'bg-gray-200 dark:bg-white/10'}`}>
                     {item.count}
                   </span>
                 )}
@@ -598,7 +598,7 @@ const AdminDashboard: React.FC = () => {
                 else setActiveTab(item.id as any);
               }}
               className={`flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all ${activeTab === item.id
-                ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                ? 'bg-primary text-white dark:text-zinc-900 shadow-lg shadow-primary/20'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'
                 }`}
             >
@@ -607,7 +607,7 @@ const AdminDashboard: React.FC = () => {
                 {item.label}
               </div>
               {item.count !== undefined && (
-                <span className={`px-2 py-0.5 rounded-md text-xs ${activeTab === item.id ? 'bg-white/20' : 'bg-gray-200 dark:bg-white/10'}`}>
+                <span className={`px-2 py-0.5 rounded-md text-xs ${activeTab === item.id ? 'bg-white/20 dark:bg-black/10 text-white dark:text-zinc-900' : 'bg-gray-200 dark:bg-white/10'}`}>
                   {item.count}
                 </span>
               )}
