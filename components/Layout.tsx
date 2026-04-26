@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import NotificationCenter from './NotificationCenter';
 import { signOut } from 'firebase/auth';
 import { auth } from '../services/firebase';
-import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext';
 import { Sun, Moon, Menu, X, Monitor, Mail, Bug, MessageSquare } from 'lucide-react';
 import ConnectionStatus from './ConnectionStatus';
 import Logo from './Logo';
@@ -34,9 +34,9 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#08080c] text-gray-900 dark:text-gray-200 font-sans selection:bg-primary/30 selection:text-white flex flex-col transition-colors duration-300">
-      {/* Background Subtle Gradient - Dark Mode Only */}
-      <div className="fixed inset-0 z-[-1] bg-gradient-to-tr from-[#050509] via-[#08080c] to-[#0b0b0f] pointer-events-none opacity-0 dark:opacity-100 transition-opacity duration-300" />
+    <div className="min-h-screen bg-background text-foreground font-sans selection:bg-primary/20 selection:text-foreground flex flex-col transition-colors duration-300">
+      {/* Background wash */}
+      <div className="fixed inset-0 z-[-1] bg-background pointer-events-none transition-colors duration-300" />
 
       {/* Tech Grid Pattern - subtle texture */}
       <div className="fixed inset-0 z-[-1] pointer-events-none opacity-[0.03]"
@@ -46,7 +46,7 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         }}>
       </div>
 
-      <nav className="bg-white/80 dark:bg-[#08080c]/90 backdrop-blur-xl border-b border-gray-200 dark:border-white/[0.06] sticky top-0 z-40 transition-all duration-300">
+      <nav className="bg-background/80 dark:bg-background/90 backdrop-blur-xl border-b border-border sticky top-0 z-40 transition-all duration-300">
         <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
 
@@ -61,7 +61,7 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
             {/* Centered Navigation */}
             <div className="hidden xl:flex items-center justify-center flex-1 px-2">
-              <div className="flex items-center bg-gray-100/50 dark:bg-white/5 rounded-full px-2 py-1.5 border border-gray-200 dark:border-white/5 backdrop-blur-sm">
+              <div className="flex items-center bg-muted/70 rounded-full px-2 py-1.5 border border-border backdrop-blur-sm">
                 {user && userProfile?.role === 'admin' ? (
                   <Link to="/admin" className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/admin') ? 'bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-white/5'}`}>
                     Admin Dashboard
@@ -123,8 +123,8 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   </div>
 
                   {/* Dropdown Menu */}
-                  <div className="absolute top-full right-0 mt-4 w-72 bg-white dark:bg-[#0a0a0a] rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 transform group-hover:translate-y-0 translate-y-2">
-                    <div className="p-5 border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/5 rounded-t-xl">
+                  <div className="absolute top-full right-0 mt-4 w-72 bg-popover text-popover-foreground rounded-xl shadow-2xl border border-border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-50 transform group-hover:translate-y-0 translate-y-2">
+                    <div className="p-5 border-b border-border bg-muted rounded-t-xl">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-full p-0.5 border border-gray-200 dark:border-white/10">
                           <img
@@ -147,8 +147,8 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                         <i className="fa-solid fa-right-from-bracket w-5 text-center"></i> Sign Out
                       </button>
                     </div>
-                    <div className="p-3 border-t border-gray-100 dark:border-white/5 flex justify-between items-center bg-gray-50 dark:bg-black/20 rounded-b-xl">
-                      <div className="flex items-center gap-1 bg-gray-200/50 dark:bg-white/5 rounded-lg p-1 border border-gray-200 dark:border-white/5">
+                    <div className="p-3 border-t border-border flex justify-between items-center bg-muted rounded-b-xl">
+                      <div className="flex items-center gap-1 bg-secondary rounded-lg p-1 border border-border">
                         <button
                           onClick={() => setTheme('light')}
                           className={`p-1.5 rounded-md transition-all ${theme === 'light' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
@@ -195,7 +195,7 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         {children}
       </main>
 
-      <footer className="border-t border-gray-200 dark:border-white/[0.06] bg-white/50 dark:bg-[#08080c]/80 backdrop-blur-sm py-8 mt-auto z-10">
+      <footer className="border-t border-border bg-background/80 backdrop-blur-sm py-8 mt-auto z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
@@ -234,10 +234,10 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           />
 
           {/* Sidebar */}
-          <div className="fixed inset-y-0 right-0 w-[280px] bg-white dark:bg-[#0a0a0a] border-l border-gray-200 dark:border-white/5 shadow-2xl transform transition-transform duration-300 ease-in-out animate-in slide-in-from-right flex flex-col">
+          <div className="fixed inset-y-0 right-0 w-[280px] bg-popover text-popover-foreground border-l border-border shadow-2xl transform transition-transform duration-300 ease-in-out animate-in slide-in-from-right flex flex-col">
 
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-white/5">
+            <div className="flex items-center justify-between p-4 border-b border-border">
               <span className="font-bold text-lg text-gray-900 dark:text-white">Menu</span>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -270,7 +270,7 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               </div>
 
               {/* Divider */}
-              {user && <div className="h-px bg-gray-200 dark:bg-white/5 my-2" />}
+              {user && <div className="h-px bg-border my-2" />}
 
               {/* User Section */}
               {user && (
@@ -285,7 +285,7 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   </Link>
 
                   {/* Theme */}
-                  <div className="bg-gray-50 dark:bg-white/5 p-1 rounded-xl flex">
+                  <div className="bg-muted p-1 rounded-xl flex">
                     <button onClick={() => setTheme('light')} className={`flex-1 p-2 rounded-lg transition-all flex items-center justify-center gap-2 text-xs font-medium ${theme === 'light' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}>
                       <Sun size={14} /> Light
                     </button>
@@ -302,13 +302,13 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
             {/* Footer */}
             {user ? (
-              <div className="p-4 border-t border-gray-200 dark:border-white/5">
+              <div className="p-4 border-t border-border">
                 <button onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 font-medium text-sm transition-colors">
                   <i className="fas fa-sign-out-alt"></i> Sign Out
                 </button>
               </div>
             ) : (
-              <div className="p-4 border-t border-gray-200 dark:border-white/5 space-y-3">
+              <div className="p-4 border-t border-border space-y-3">
                 <Link to="/auth" onClick={() => setIsMobileMenuOpen(false)} className="block w-full py-3 text-center rounded-xl bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white font-medium text-sm hover:bg-gray-200 dark:hover:bg-white/20 transition-colors">Log In</Link>
                 <Link to="/auth" onClick={() => setIsMobileMenuOpen(false)} className="block w-full py-3 text-center rounded-xl bg-primary text-white font-medium text-sm shadow-lg shadow-primary/20 hover:bg-primary-dark transition-colors">Get Started</Link>
               </div>
@@ -321,9 +321,7 @@ const LayoutContent: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 };
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <ThemeProvider>
-    <LayoutContent>{children}</LayoutContent>
-  </ThemeProvider>
+  <LayoutContent>{children}</LayoutContent>
 );
 
 export default Layout;

@@ -25,17 +25,43 @@
         extend: {
           colors: {
             primary: {
-              DEFAULT: '#3b82f6',
-              dark: '#2563eb',
-              light: 'rgba(59, 130, 246, 0.15)'
+              DEFAULT: 'rgb(var(--primary-rgb) / <alpha-value>)',
+              foreground: 'rgb(var(--primary-foreground-rgb) / <alpha-value>)',
+              dark: 'rgb(63 63 70 / <alpha-value>)',
+              light: 'rgb(var(--primary-rgb) / 0.12)'
             },
             accent: {
-              DEFAULT: '#8b5cf6',
-              muted: 'rgba(139, 92, 246, 0.2)'
+              DEFAULT: 'rgb(var(--accent-rgb) / <alpha-value>)',
+              foreground: 'rgb(var(--accent-foreground-rgb) / <alpha-value>)',
+              muted: 'rgb(var(--accent-rgb) / 0.72)'
             },
-            secondary: '#6c757d',
+            background: 'rgb(var(--background-rgb) / <alpha-value>)',
+            foreground: 'rgb(var(--foreground-rgb) / <alpha-value>)',
+            card: {
+              DEFAULT: 'rgb(var(--card-rgb) / <alpha-value>)',
+              foreground: 'rgb(var(--card-foreground-rgb) / <alpha-value>)',
+            },
+            popover: {
+              DEFAULT: 'rgb(var(--popover-rgb) / <alpha-value>)',
+              foreground: 'rgb(var(--popover-foreground-rgb) / <alpha-value>)',
+            },
+            muted: {
+              DEFAULT: 'rgb(var(--muted-rgb) / <alpha-value>)',
+              foreground: 'rgb(var(--muted-foreground-rgb) / <alpha-value>)',
+            },
+            secondary: {
+              DEFAULT: 'rgb(var(--secondary-rgb) / <alpha-value>)',
+              foreground: 'rgb(var(--secondary-foreground-rgb) / <alpha-value>)',
+            },
+            border: 'rgb(var(--border-rgb) / <alpha-value>)',
+            input: 'rgb(var(--input-rgb) / <alpha-value>)',
+            ring: 'rgb(var(--ring-rgb) / <alpha-value>)',
+            destructive: {
+              DEFAULT: 'rgb(var(--destructive-rgb) / <alpha-value>)',
+              foreground: 'rgb(var(--destructive-foreground-rgb, 250 250 250) / <alpha-value>)',
+            },
             success: '#28a745',
-            danger: '#dc3545',
+            danger: 'rgb(var(--destructive-rgb) / <alpha-value>)',
             warning: '#ffc107',
             info: '#17a2b8',
             purple: '#6f42c1',
@@ -44,8 +70,9 @@
             light: '#f8f9fa'
           },
           fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+            sans: ['var(--font-sans)'],
+            mono: ['var(--font-mono)'],
+            serif: ['var(--font-serif)'],
           },
           animation: {
             blob: "blob 7s infinite",
@@ -79,7 +106,9 @@
   </script>
   <script>
     // Immediately apply dark mode if preference exists to prevent FOUC (Flash of Unstyled Content)
-    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    const storedTheme = localStorage.theme;
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (storedTheme === 'dark' || storedTheme === 'system' && prefersDark || (!storedTheme && prefersDark)) {
       document.documentElement.classList.add('dark')
     } else {
       document.documentElement.classList.remove('dark')
@@ -88,7 +117,7 @@
 </head>
 
 <body
-  class="bg-gray-50 dark:bg-[#050509] text-gray-800 dark:text-slate-100 font-sans antialiased min-h-screen flex flex-col transition-colors duration-300">
+  class="bg-background text-foreground font-sans antialiased min-h-screen flex flex-col transition-colors duration-300">
   <div id="root"></div>
   <div id="portal-root"></div>
   <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -69,22 +69,22 @@ const DashboardCharts: React.FC<DashboardChartsProps> = ({ stats, activityData: 
                             <Tooltip
                                 cursor={{ fill: 'transparent' }}
                                 contentStyle={{
-                                    backgroundColor: 'rgba(30, 30, 30, 0.9)',
-                                    borderColor: '#333',
-                                    color: '#fff',
+                                    backgroundColor: 'var(--popover)',
+                                    borderColor: 'var(--border)',
+                                    color: 'var(--popover-foreground)',
                                     borderRadius: '8px',
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                    boxShadow: '0 12px 30px rgb(var(--foreground-rgb) / 0.12)'
                                 }}
-                                itemStyle={{ color: '#fff' }}
+                                itemStyle={{ color: 'var(--popover-foreground)' }}
                             />
                             <Bar
                                 dataKey="value"
-                                fill="#1E3A8A" // Dark blue base
+                                fill="var(--chart-1)"
                                 radius={[4, 4, 0, 0]}
                             >
                                 {/* Highlight last bar with brighter blue like reference */}
                                 {activityData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={index === activityData.length - 1 ? '#2563EB' : '#1e3a8a'} />
+                                    <Cell key={`cell-${index}`} fill={index === activityData.length - 1 ? 'var(--chart-1)' : 'var(--chart-3)'} />
                                 ))}
                             </Bar>
                         </BarChart>

@@ -39,7 +39,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; role?: 'recruiter' |
   const { user, userProfile, loading } = useAuth();
 
   if (loading || (user && !userProfile)) return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
     </div>
   );
@@ -60,7 +60,7 @@ const HomeRoute: React.FC = () => {
   const { user, userProfile, loading } = useAuth();
 
   if (loading) return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
     </div>
   );
@@ -68,7 +68,7 @@ const HomeRoute: React.FC = () => {
   if (user) {
     if (!userProfile) {
       return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
         </div>
       );
@@ -85,9 +85,10 @@ const HomeRoute: React.FC = () => {
 const App: React.FC = () => {
   return (
     <MessageBoxProvider>
-      <AuthProvider>
-        <HashRouter>
-          <Routes>
+      <ThemeProvider>
+        <AuthProvider>
+          <HashRouter>
+            <Routes>
             {/* Public Routes (No Layout) */}
             <Route path="/" element={<HomeRoute />} />
             <Route path="auth" element={<AuthPage />} />
@@ -194,9 +195,10 @@ const App: React.FC = () => {
                 </Routes>
               </Layout>
             } />
-          </Routes>
-        </HashRouter>
-      </AuthProvider>
+            </Routes>
+          </HashRouter>
+        </AuthProvider>
+      </ThemeProvider>
     </MessageBoxProvider>
   );
 };

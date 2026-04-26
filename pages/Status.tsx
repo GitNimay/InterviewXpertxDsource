@@ -223,19 +223,13 @@ const StatusPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#050509] text-white" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
-      {/* Ambient background glow */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-blue-500/[0.04] rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-[600px] h-[300px] bg-purple-500/[0.03] rounded-full blur-3xl" />
-      </div>
-
+    <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: 'var(--font-sans)' }}>
       <div className="relative max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-16">
         {/* Header */}
         <div className="text-center mb-8 sm:mb-10">
           <a
             href="#/"
-            className="inline-flex items-center gap-2 text-slate-400 hover:text-white text-sm mb-6 sm:mb-8 transition-colors"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground text-sm mb-6 sm:mb-8 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -245,7 +239,7 @@ const StatusPage: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight mb-2 sm:mb-3">
             System Status
           </h1>
-          <p className="text-slate-400 text-xs sm:text-sm">
+          <p className="text-muted-foreground text-xs sm:text-sm">
             Real-time health monitoring for InterviewXpert services
           </p>
         </div>
@@ -272,7 +266,7 @@ const StatusPage: React.FC = () => {
           <button
             onClick={runChecks}
             disabled={isRefreshing}
-            className="text-slate-400 hover:text-white transition-colors disabled:opacity-50 shrink-0 p-1 -mr-1"
+            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 shrink-0 p-1 -mr-1"
             title="Refresh status"
           >
             <svg className={`h-5 w-5 sm:h-4 sm:w-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -282,27 +276,27 @@ const StatusPage: React.FC = () => {
         </div>
 
         {/* Service list */}
-        <div className="rounded-xl border border-white/[0.06] bg-[#0b0b0f] overflow-hidden divide-y divide-white/[0.06]">
+        <div className="rounded-xl border border-border bg-card text-card-foreground overflow-hidden divide-y divide-border shadow-sm">
           {services.map((service) => (
             <div
               key={service.name}
-              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:px-5 sm:py-4 hover:bg-white/[0.02] transition-colors gap-3 sm:gap-0"
+              className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:px-5 sm:py-4 hover:bg-muted/60 transition-colors gap-3 sm:gap-0"
             >
               <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-md sm:rounded-lg bg-white/[0.05] border border-white/[0.1] p-1.5 shadow-sm mt-0.5 sm:mt-0">
+                <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-md sm:rounded-lg bg-muted border border-border p-1.5 shadow-sm mt-0.5 sm:mt-0">
                   <img src={service.iconUrl} alt={`${service.name} logo`} className="w-full h-full object-contain drop-shadow-sm" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm sm:text-base font-medium text-white">{service.name}</p>
-                  <p className="text-[11px] sm:text-xs text-slate-500 leading-snug sm:truncate max-w-[280px]">{service.description}</p>
+                  <p className="text-sm sm:text-base font-medium text-foreground">{service.name}</p>
+                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug sm:truncate max-w-[280px]">{service.description}</p>
                   {service.modelStatus && (
-                    <p className="text-[11px] text-blue-400 mt-1 font-mono">{service.modelStatus}</p>
+                    <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-1 font-mono">{service.modelStatus}</p>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-4 sm:ml-4 sm:flex-shrink-0 self-start sm:self-auto ml-[46px] sm:ml-0">
                 {service.status !== 'checking' && service.responseTime !== undefined && (
-                  <span className="text-[11px] text-slate-500 font-mono tabular-nums bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/[0.05]">
+                  <span className="text-[11px] text-muted-foreground font-mono tabular-nums bg-muted px-1.5 py-0.5 rounded border border-border">
                     {service.responseTime}ms
                   </span>
                 )}
@@ -315,18 +309,18 @@ const StatusPage: React.FC = () => {
         {/* Footer */}
         <div className="mt-8 text-center">
           {lastChecked && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Last checked:{' '}
-              <span className="text-slate-400">
+              <span className="text-foreground">
                 {lastChecked.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </span>
               <span className="mx-1.5 text-slate-600">·</span>
               Auto-refreshes every 60s
             </p>
           )}
-          <p className="text-xs text-slate-600 mt-3">
+          <p className="text-xs text-muted-foreground mt-3">
             Powered by{' '}
-            <a href="#/" className="text-blue-400/80 hover:text-blue-400 transition-colors">
+            <a href="#/" className="text-blue-600 dark:text-blue-400 hover:underline transition-colors">
               InterviewXpert
             </a>
           </p>

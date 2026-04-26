@@ -32,18 +32,18 @@ export const RevenueAreaChart: React.FC<{ data: RevenueData[] }> = ({ data }) =>
                 >
                     <defs>
                         <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
+                            <stop offset="5%" stopColor="var(--chart-4)" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="var(--chart-4)" stopOpacity={0} />
                         </linearGradient>
                     </defs>
-                    <XAxis dataKey="name" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} />
+                    <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
                     <YAxis stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${value}`} />
                     <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
                     <Tooltip
-                        contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }}
-                        itemStyle={{ color: '#bdbdbd' }}
+                        contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)', borderRadius: '10px' }}
+                        itemStyle={{ color: 'var(--popover-foreground)' }}
                     />
-                    <Area type="monotone" dataKey="amount" stroke="#8884d8" fillOpacity={1} fill="url(#colorAmount)" />
+                    <Area type="monotone" dataKey="amount" stroke="var(--chart-4)" fillOpacity={1} fill="url(#colorAmount)" />
                 </AreaChart>
             </ResponsiveContainer>
         </div>
@@ -54,7 +54,7 @@ export const RevenueAreaChart: React.FC<{ data: RevenueData[] }> = ({ data }) =>
  * Pie Chart for User Distribution
  */
 export const UserPieChart: React.FC<{ data: UserData[] }> = ({ data }) => {
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+    const COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)'];
 
     return (
         <div className="w-full h-64">
@@ -66,7 +66,7 @@ export const UserPieChart: React.FC<{ data: UserData[] }> = ({ data }) => {
                         cy="50%"
                         innerRadius={60}
                         outerRadius={80}
-                        fill="#8884d8"
+                        fill="var(--chart-1)"
                         paddingAngle={5}
                         dataKey="value"
                         label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
@@ -76,7 +76,7 @@ export const UserPieChart: React.FC<{ data: UserData[] }> = ({ data }) => {
                         ))}
                     </Pie>
                     <Tooltip
-                        contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }}
+                        contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)', borderRadius: '10px' }}
                     />
                     <Legend />
                 </PieChart>
@@ -97,14 +97,14 @@ export const JobBarChart: React.FC<{ data: JobData[] }> = ({ data }) => {
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                 >
                     <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                    <XAxis dataKey="name" stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#6b7280" fontSize={12} tickLine={false} axisLine={false} />
+                    <XAxis dataKey="name" stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
                     <Tooltip
                         cursor={{ fill: 'transparent' }}
-                        contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#f3f4f6' }}
+                        contentStyle={{ backgroundColor: 'var(--popover)', borderColor: 'var(--border)', color: 'var(--popover-foreground)', borderRadius: '10px' }}
                     />
                     <Legend />
-                    <Bar dataKey="count" fill="#82ca9d" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="count" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
                 </BarChart>
             </ResponsiveContainer>
         </div>

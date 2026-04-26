@@ -139,10 +139,10 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="dark min-h-screen flex flex-col relative bg-[#050509] text-white font-sans selection:bg-primary/30">
+    <div className="min-h-screen flex flex-col relative bg-background text-foreground font-sans selection:bg-primary/20">
 
       {/* Background Ambience */}
-      <div className="fixed inset-0 z-0 pointer-events-none dark">
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-20 dark:opacity-100 transition-opacity">
         <BackgroundPaths />
       </div>
 
@@ -150,7 +150,7 @@ const AuthPage: React.FC = () => {
         <div className="auth-card w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-0 rounded-[14px] overflow-hidden min-h-[550px]">
 
           {/* Left Side - Form Section */}
-          <div className="flex flex-col justify-center p-8 md:p-10 relative">
+          <div className="auth-panel flex flex-col justify-center p-8 md:p-10 relative">
 
             <div className="w-full max-w-sm mx-auto">
               {/* Header */}
@@ -333,10 +333,10 @@ const AuthPage: React.FC = () => {
 
                   <div className="relative pt-3">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-zinc-800"></div>
+                      <div className="auth-divider w-full border-t border-zinc-800"></div>
                     </div>
                     <div className="relative flex justify-center text-xs">
-                      <span className="px-2 bg-[#0a0a0a] text-zinc-500">Or continue with</span>
+                      <span className="auth-divider-label px-2 bg-[#0a0a0a] text-zinc-500">Or continue with</span>
                     </div>
                   </div>
 
@@ -357,7 +357,7 @@ const AuthPage: React.FC = () => {
             </div>
 
             <div className="mt-8 text-center">
-              <Link to="/" className="inline-flex items-center gap-2 text-zinc-600 hover:text-zinc-300 transition-colors text-xs">
+              <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors text-xs">
                 <i className="fa-solid fa-arrow-left"></i> Back to Homepage
               </Link>
             </div>
@@ -435,24 +435,24 @@ const AuthPage: React.FC = () => {
       </div>
 
       {/* Footer - Minimal */}
-      <footer className="relative z-10 py-6 text-center border-t border-white/5 bg-black/50 backdrop-blur-sm">
+      <footer className="relative z-10 py-6 text-center border-t border-border bg-background/80 backdrop-blur-sm">
         <div className="flex items-center justify-center gap-6 mb-4">
-          <Link to="/contact" className="group flex items-center gap-2 text-xs font-medium text-zinc-400 hover:text-white transition-colors">
-            <span className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 transition-colors ring-1 ring-white/5 group-hover:ring-white/20">
+          <Link to="/contact" className="group flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors">
+            <span className="p-1.5 rounded-lg bg-muted group-hover:bg-secondary transition-colors ring-1 ring-border">
               <Mail size={14} />
             </span>
             Contact Support
           </Link>
-          <div className="w-px h-4 bg-white/10"></div>
-          <Link to="/report-bug" className="group flex items-center gap-2 text-xs font-medium text-zinc-400 hover:text-red-400 transition-colors">
-            <span className="p-1.5 rounded-lg bg-white/5 group-hover:bg-red-500/10 transition-colors ring-1 ring-white/5 group-hover:ring-red-500/20">
+          <div className="w-px h-4 bg-border"></div>
+          <Link to="/report-bug" className="group flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-red-500 transition-colors">
+            <span className="p-1.5 rounded-lg bg-muted group-hover:bg-red-500/10 transition-colors ring-1 ring-border">
               <Bug size={14} />
             </span>
             Report Issue
           </Link>
         </div>
-        <p className="text-[10px] text-zinc-600">
-          &copy; {new Date().getFullYear()} InterviewXpert. Designed by <span className="text-zinc-400">Team Interview Expert</span>.
+        <p className="text-[10px] text-muted-foreground">
+          &copy; {new Date().getFullYear()} InterviewXpert. Designed by <span className="text-foreground">Team Interview Expert</span>.
         </p>
       </footer>
 
@@ -463,9 +463,9 @@ const AuthPage: React.FC = () => {
             <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fa-regular fa-envelope-open text-2xl"></i>
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Account Created!</h3>
-            <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-              We've sent a verification link to your email. <strong className="text-zinc-200">Please check your inbox (and spam/junk folder)</strong>, verify your email address, and then log in.
+            <h3 className="text-2xl font-bold text-foreground mb-2">Account Created!</h3>
+            <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
+              We've sent a verification link to your email. <strong className="text-foreground">Please check your inbox (and spam/junk folder)</strong>, verify your email address, and then log in.
             </p>
             <button 
               onClick={() => setShowVerifyPopup(false)}
@@ -484,9 +484,9 @@ const AuthPage: React.FC = () => {
             <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fa-solid fa-triangle-exclamation text-2xl"></i>
             </div>
-            <h3 className="text-2xl font-bold text-white mb-2">Email Not Verified</h3>
-            <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-              You must verify your email before logging in. <strong className="text-zinc-200">Please check your inbox and spam/junk folder</strong> for the verification link.
+            <h3 className="text-2xl font-bold text-foreground mb-2">Email Not Verified</h3>
+            <p className="text-muted-foreground text-sm mb-6 leading-relaxed">
+              You must verify your email before logging in. <strong className="text-foreground">Please check your inbox and spam/junk folder</strong> for the verification link.
               <br /><br />
               If you did not receive a link, please fill out the Contact Form to have an admin manually verify your account.
             </p>
