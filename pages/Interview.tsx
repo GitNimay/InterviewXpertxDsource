@@ -353,13 +353,13 @@ const CandidateInfoForm: React.FC<{
   };
 
   return (
-      <div className="w-11/12 md:max-w-2xl lg:max-w-3xl bg-white dark:bg-gray-800 p-6 md:p-8 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+      <div className="w-[95%] md:w-11/12 md:max-w-2xl lg:max-w-3xl bg-white dark:bg-gray-800 p-4 md:p-8 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
         <div className="text-center mb-6">
           <div className="inline-block px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-full mb-3 border border-blue-100 dark:border-blue-800">
             Applying for: {jobTitle || 'AI Interview'}
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Candidate Information</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Confirm your details to begin the AI interview.</p>
+          <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-2">Candidate Information</h2>
+          <p className="text-[11px] md:text-sm text-gray-500 dark:text-gray-400">Confirm your details to begin the AI interview.</p>
         </div>
         
         {userProfile && (
@@ -953,7 +953,7 @@ const CandidateInterviewFlow: React.FC = () => {
     return (
       <Container>
         <div className="max-w-3xl w-full p-4 md:p-0">
-          <h2 className="text-3xl font-extrabold text-center mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-center mb-2 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Ready for your AI Interview?
           </h2>
           <p className="text-center text-gray-500 dark:text-gray-400 mb-8">Role: {interview.title}</p>
@@ -1228,7 +1228,12 @@ const ActiveInterviewSession: React.FC<{
         // Low-spec optimization: 320x240 reduces GPU/RAM pressure significantly.
         // Low video resolution is sufficient for recording and transcription.
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15, max: 20 } },
+          video: { 
+            width: { ideal: 320 }, 
+            height: { ideal: 240 }, 
+            frameRate: { ideal: 15, max: 20 },
+            facingMode: 'user'
+          },
           audio: true
         });
 
@@ -1400,11 +1405,11 @@ const ActiveInterviewSession: React.FC<{
     if (!isFullscreen && !isTerminated) {
       return createPortal(
         <div className="fixed inset-0 z-[10000] bg-black/95 flex items-center justify-center p-4 sm:p-6 text-white text-center">
-          <div className="max-w-md w-full p-6 sm:p-8 bg-[#111] rounded-2xl border border-red-500/30 shadow-2xl relative overflow-hidden max-h-[90vh] overflow-y-auto">
+          <div className="max-w-md w-full p-5 sm:p-8 bg-[#111] rounded-2xl border border-red-500/30 shadow-2xl relative overflow-hidden max-h-[95vh] overflow-y-auto">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 to-yellow-500"></div>
             <i className="fas fa-exclamation-triangle text-5xl text-yellow-500 mb-4 animate-pulse"></i>
-            <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">Fullscreen Required</h2>
-            <p className="text-gray-300 mb-6 font-medium text-xs sm:text-sm leading-relaxed">
+            <h2 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-4">Fullscreen Required</h2>
+            <p className="text-gray-300 mb-4 sm:mb-6 font-medium text-[11px] sm:text-sm leading-relaxed">
               {cameraError || fullscreenError || (
                 hasEnteredFullscreenRef.current
                   ? `You have exited fullscreen mode. You have ${3 - fullscreenEscapes} escape(s) remaining before automatic termination.`
@@ -1469,7 +1474,7 @@ const ActiveInterviewSession: React.FC<{
         {/* Left panel: camera feed */}
         <div className="w-full md:w-5/12 flex flex-col gap-1.5 md:gap-3 shrink-0 md:shrink md:min-h-0">
           {/* Camera Card */}
-          <div className="relative min-h-[140px] h-[30vh] md:h-auto md:flex-1 md:min-h-[240px] bg-gray-900 rounded-xl md:rounded-2xl overflow-hidden border border-gray-700/50 shadow-xl">
+          <div className="relative min-h-[140px] h-[35vh] md:h-auto md:flex-1 md:min-h-[240px] bg-gray-900 rounded-xl md:rounded-2xl overflow-hidden border border-gray-700/50 shadow-xl">
             <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover transform scale-x-[-1]" />
 
             {/* Countdown Overlay (scoped to camera) */}
